@@ -2,8 +2,9 @@
 
 ## 当前状态
 
-第一版后端选择独立安装的 `page_assist` 频道插件，位于相邻 QwenPaw 仓库的
-`plugins/channel/page_assist/`，不改宿主核心。频道在 QwenPaw 同一进程中监听
+第一版后端选择独立安装的 `page_assist` 频道插件，位于相邻独立仓库
+`qwenpaw-channel-page-assist/`，不改宿主核心，宿主使用 pip 发布版。
+频道在 QwenPaw 同一进程中监听
 专用端口（默认 `127.0.0.1:8766`），绑定一个 Agent。普通 Console URL 或
 OpenAI API 不能替代此地址。安装及配置参见插件 README。
 

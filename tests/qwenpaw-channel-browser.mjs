@@ -27,12 +27,13 @@ try {
     process.env.QWENPAW_TEST_PYTHON || path.join(root, ".venv/bin/python"),
     [
       path.join(
-        root,
-        "qwenpaw/plugins/channel/page_assist/tests/test_channel.py"
+        process.env.QWENPAW_CHANNEL_DIR ||
+          path.join(root, "qwenpaw-channel-page-assist"),
+        "tests/test_channel.py"
       ),
       String(port)
     ],
-    { env: { ...process.env, PYTHONPATH: path.join(root, "qwenpaw/src") } }
+    { env: { ...process.env, PYTHONPATH: "" } }
   )
   let output = ""
   backend.stdout.on("data", (data) => {

@@ -118,7 +118,7 @@ credential, then select an authorized Agent and explicitly create a remote chat.
 No Ollama configuration is required for this mode.
 
 The first backend is an independently installable **Page Assist channel plugin**
-in the companion QwenPaw repository (`plugins/channel/page_assist`). It runs in
+in the standalone companion repository `qwenpaw-channel-page-assist`. It runs in
 the QwenPaw process on a dedicated port (default `127.0.0.1:8766`), bound to one
 Agent. It supports text, explicit webpage sharing and follow-up chat with complete
 replies. Disconnect/restart recovery and browser approval cards are deferred;
