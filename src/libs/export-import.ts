@@ -35,6 +35,7 @@ import { exportVectors, importVectorsV2 } from "@/db/dexie/vector"
 import { importKnowledge } from "@/db/knowledge"
 import { importVectors } from "@/db/vector"
 import { getStorageSyncEnabled } from "@/services/app"
+import { filterRemoteStorage } from "@/services/qwenpaw/privacy"
 
 export const formatKnowledge = (knowledge: any[]) => {
   const kb = []
@@ -126,13 +127,13 @@ export const exportPageAssistData = async (
   }
 
   if (wants("storageLocal")) {
-    data.storageLocal = await browser.storage.local.get()
+    data.storageLocal = filterRemoteStorage(await browser.storage.local.get())
   }
 
   if (wants("storageSync")) {
     const storageSyncEnabled = await getStorageSyncEnabled()
     data.storageSync = storageSyncEnabled
-      ? await browser.storage.sync.get()
+      ? filterRemoteStorage(await browser.storage.sync.get())
       : {}
   }
 
@@ -403,7 +404,7 @@ export const importPageAssistDataFromObject = async (
     data?.storageLocal &&
     typeof data.storageLocal === "object"
   ) {
-    await browser.storage.local.set(data.storageLocal)
+    await browser.storage.local.set(filterRemoteStorage(data.storageLocal))
   }
 
   if (wants("storageSync")) {
@@ -413,7 +414,7 @@ export const importPageAssistDataFromObject = async (
       data?.storageSync &&
       typeof data.storageSync === "object"
     ) {
-      await browser.storage.sync.set(data.storageSync)
+      await browser.storage.sync.set(filterRemoteStorage(data.storageSync))
     }
   }
 }

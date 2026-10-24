@@ -16,13 +16,18 @@ import { coldarkDark } from "react-syntax-highlighter/dist/cjs/styles/prism"
 interface Props {
   language: string
   value: string
+  allowPreview?: boolean
 }
 
-const CodeBlockComponent: FC<Props> = ({ language, value }) => {
+const CodeBlockComponent: FC<Props> = ({
+  language,
+  value,
+  allowPreview = true
+}) => {
   const [isBtnPressed, setIsBtnPressed] = useState(false)
   const [previewValue, setPreviewValue] = useState(value)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   const computeKey = () => {
     const base = `${language}::${value?.slice(0, 200)}`
     let hash = 0
@@ -60,9 +65,9 @@ const CodeBlockComponent: FC<Props> = ({ language, value }) => {
     }, 4000)
   }
 
-  const isPreviewable = ["html", "svg", "xml", "mathml"].includes(
-    (language || "").toLowerCase()
-  )
+  const isPreviewable =
+    allowPreview &&
+    ["html", "svg", "xml", "mathml"].includes((language || "").toLowerCase())
 
   const buildPreviewDoc = useCallback(() => {
     const code = previewValue || ""
@@ -114,11 +119,11 @@ const CodeBlockComponent: FC<Props> = ({ language, value }) => {
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current)
     }
-    
+
     debounceTimeoutRef.current = setTimeout(() => {
       setPreviewValue(value)
-    }, 300) 
-    
+    }, 300)
+
     return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current)
@@ -171,7 +176,9 @@ const CodeBlockComponent: FC<Props> = ({ language, value }) => {
               </div>
             )}
 
-            <span className="font-mono text-xs text-white  ">{language || "text"}</span>
+            <span className="font-mono text-xs text-white  ">
+              {language || "text"}
+            </span>
           </div>
           <div className="sticky top-9 md:top-[5.75rem]">
             <div className="absolute bottom-0 right-2 flex h-9 items-center gap-1">

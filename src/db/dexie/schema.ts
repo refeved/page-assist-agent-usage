@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie"
+import type { CachedMessage, Conversation, StoredRequest } from "@/services/qwenpaw/types"
 import {
   HistoryInfo,
   Message,
@@ -20,6 +21,9 @@ import {
 } from "./types"
 
 export class PageAssistDexieDB extends Dexie {
+  qwenpawConversations!: Table<Conversation, string>
+  qwenpawRequests!: Table<StoredRequest, [string, string]>
+  qwenpawMessages!: Table<CachedMessage, [string, string]>
   chatHistories!: Table<HistoryInfo>
   messages!: Table<Message>
   prompts!: Table<Prompt>
@@ -172,6 +176,12 @@ export class PageAssistDexieDB extends Dexie {
       projectFolders: "id, title, color, createdAt",
       mcpServers:
         "id, name, url, enabled, transport, updatedAt, createdAt, toolsLastSyncedAt"
+    })
+
+    this.version(6).stores({
+      qwenpawConversations: "id, connectionId, updatedAt",
+      qwenpawRequests: "[connectionId+requestId], conversationLocalId, updatedAt",
+      qwenpawMessages: "[conversationLocalId+id], conversationLocalId"
     })
   }
 }

@@ -75,6 +75,7 @@ type Props = {
   sources?: any[]
   hideEditAndRegenerate?: boolean
   hideContinue?: boolean
+  disableQuoteReply?: boolean
   onSourceClick?: (source: any) => void
   isTTSEnabled?: boolean
   generationInfo?: any
@@ -168,7 +169,9 @@ const renderAssistantText = ({
       )
     }
 
-    return <Markdown key={`${keyPrefix}-content-${index}`} message={entry.content} />
+    return (
+      <Markdown key={`${keyPrefix}-content-${index}`} message={entry.content} />
+    )
   })
 
 const McpInvocationGroup = ({
@@ -368,49 +371,49 @@ const PlaygroundMessageComponent = (props: Props) => {
           <div className="flex flex-grow flex-col gap-4">
             {!editMode ? (
               props.isBot ? (
-                <SelectionReplyArea className="flex flex-col gap-4">
-                {props.segments && props.segments.length > 0 ? (
-                  props.segments.map((segment) => {
-                    if (segment.type === "text") {
-                      return (
-                        <div key={segment.key} className="space-y-3">
-                          {renderAssistantText({
-                            keyPrefix: segment.key,
-                            message: segment.message.message,
-                            isStreaming: props.isStreaming,
-                            openReasoning: props.openReasoning,
-                            hideReasoningWidget,
-                            reasoningTimeTaken:
-                              segment.message.reasoning_time_taken,
-                            t
-                          })}
-                        </div>
-                      )
-                    }
+                <SelectionReplyArea
+                  disabled={props.disableQuoteReply}
+                  className="flex flex-col gap-4">
+                  {props.segments && props.segments.length > 0
+                    ? props.segments.map((segment) => {
+                        if (segment.type === "text") {
+                          return (
+                            <div key={segment.key} className="space-y-3">
+                              {renderAssistantText({
+                                keyPrefix: segment.key,
+                                message: segment.message.message,
+                                isStreaming: props.isStreaming,
+                                openReasoning: props.openReasoning,
+                                hideReasoningWidget,
+                                reasoningTimeTaken:
+                                  segment.message.reasoning_time_taken,
+                                t
+                              })}
+                            </div>
+                          )
+                        }
 
-                    return (
-                      <McpInvocationGroup
-                        key={segment.key}
-                        content={segment.content}
-                        invocations={segment.invocations}
-                        isStreaming={props.isStreaming}
-                        openReasoning={props.openReasoning}
-                        hideReasoningWidget={hideReasoningWidget}
-                        t={t}
-                      />
-                    )
-                  })
-                ) : (
-                  renderAssistantText({
-                    keyPrefix: "assistant",
-                    message: props.message,
-                    isStreaming: props.isStreaming,
-                    openReasoning: props.openReasoning,
-                    hideReasoningWidget,
-                    reasoningTimeTaken: props.reasoningTimeTaken,
-                    t
-                  })
-                )}
+                        return (
+                          <McpInvocationGroup
+                            key={segment.key}
+                            content={segment.content}
+                            invocations={segment.invocations}
+                            isStreaming={props.isStreaming}
+                            openReasoning={props.openReasoning}
+                            hideReasoningWidget={hideReasoningWidget}
+                            t={t}
+                          />
+                        )
+                      })
+                    : renderAssistantText({
+                        keyPrefix: "assistant",
+                        message: props.message,
+                        isStreaming: props.isStreaming,
+                        openReasoning: props.openReasoning,
+                        hideReasoningWidget,
+                        reasoningTimeTaken: props.reasoningTimeTaken,
+                        t
+                      })}
                 </SelectionReplyArea>
               ) : (
                 <p
@@ -493,9 +496,7 @@ const PlaygroundMessageComponent = (props: Props) => {
           {!props.isProcessing && !editMode && !isTraceOnly ? (
             <div
               className={`flex gap-2 space-x-2 ${
-                !props.isLastMessage
-                  ? "invisible group-hover:visible"
-                  : ""
+                !props.isLastMessage ? "invisible group-hover:visible" : ""
               }`}>
               {props.isTTSEnabled && (
                 <Tooltip title={t("tts")}>
@@ -564,15 +565,15 @@ const PlaygroundMessageComponent = (props: Props) => {
                   {!props.hideEditAndRegenerate &&
                     props.isLastMessage &&
                     props.onRengerate && (
-                    <Tooltip title={t("regenerate")}>
-                      <button
-                        aria-label={t("regenerate")}
-                        onClick={props.onRengerate}
-                        className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-gray-100 transition-colors duration-200 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:border-none dark:bg-[#242424] dark:hover:bg-gray-700">
-                        <RotateCcw className="h-3 w-3 text-gray-400 group-hover:text-gray-500" />
-                      </button>
-                    </Tooltip>
-                  )}
+                      <Tooltip title={t("regenerate")}>
+                        <button
+                          aria-label={t("regenerate")}
+                          onClick={props.onRengerate}
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-gray-100 transition-colors duration-200 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:border-none dark:bg-[#242424] dark:hover:bg-gray-700">
+                          <RotateCcw className="h-3 w-3 text-gray-400 group-hover:text-gray-500" />
+                        </button>
+                      </Tooltip>
+                    )}
 
                   {props?.onNewBranch && !props?.temporaryChat && (
                     <Tooltip title={t("newBranch")}>
@@ -634,7 +635,10 @@ const areSegmentsEqual = (
     if (sa.type !== sb.type || sa.key !== sb.key) return false
     if (sa.type === "text" && sb.type === "text") {
       if (sa.message.message !== sb.message.message) return false
-    } else if (sa.type === "tool_invocations" && sb.type === "tool_invocations") {
+    } else if (
+      sa.type === "tool_invocations" &&
+      sb.type === "tool_invocations"
+    ) {
       if (
         sa.content !== sb.content ||
         sa.invocations.length !== sb.invocations.length
@@ -674,6 +678,7 @@ const arePlaygroundMessagePropsEqual = (previous: Props, next: Props) =>
   previous.sources === next.sources &&
   previous.hideEditAndRegenerate === next.hideEditAndRegenerate &&
   previous.hideContinue === next.hideContinue &&
+  previous.disableQuoteReply === next.disableQuoteReply &&
   previous.onSourceClick === next.onSourceClick &&
   previous.isTTSEnabled === next.isTTSEnabled &&
   previous.generationInfo === next.generationInfo &&

@@ -18,6 +18,9 @@ import OptionMCP from "./option-settings-mcp"
 import OptionMemory from "./option-settings-memory"
 import SidepanelSettingsOpenAI from "./sidepanel-settings-openai"
 import SidepanelSettingsModel from "./sidepanel-settings-model"
+import SidepanelEntry from "./sidepanel-entry"
+import QwenPawSidebar from "./sidepanel-qwenpaw"
+import QwenPawSettings from "./sidepanel-settings-qwenpaw"
 
 export const OptionRoutingChrome = () => {
   return (
@@ -44,7 +47,10 @@ export const OptionRoutingChrome = () => {
 export const SidepanelRoutingChrome = () => {
   return (
     <Routes>
-      <Route path="/" element={<SidepanelChat />} />
+      <Route path="/" element={<SidepanelEntry />} />
+      <Route path="/local" element={<SidepanelChat />} />
+      <Route path="/qwenpaw" element={<QwenPawSidebar />} />
+      <Route path="/settings/qwenpaw" element={<QwenPawSettings />} />
       <Route path="/settings" element={<SidepanelSettings />} />
       <Route path="/settings/openai" element={<SidepanelSettingsOpenAI />} />
       <Route path="/settings/model" element={<SidepanelSettingsModel />} />

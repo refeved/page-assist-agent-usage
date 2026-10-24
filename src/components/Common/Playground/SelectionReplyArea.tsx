@@ -8,6 +8,7 @@ import { normalizeQuoteText } from "@/utils/quote-reply"
 type Props = {
   children: React.ReactNode
   className?: string
+  disabled?: boolean
 }
 
 type PopoverState = {
@@ -29,7 +30,8 @@ const POPOVER_HEIGHT = 36
  */
 export const SelectionReplyArea: React.FC<Props> = ({
   children,
-  className
+  className,
+  disabled = false
 }) => {
   const [enabled] = useStorage("enableQuoteReply", true)
   const { t } = useTranslation("common")
@@ -76,7 +78,7 @@ export const SelectionReplyArea: React.FC<Props> = ({
   }, [])
 
   React.useEffect(() => {
-    if (!enabled) {
+    if (!enabled || disabled) {
       setPopover(null)
       return
     }
@@ -117,7 +119,7 @@ export const SelectionReplyArea: React.FC<Props> = ({
       container.removeEventListener("keyup", handleKeyUp)
       document.removeEventListener("selectionchange", handleSelectionChange)
     }
-  }, [enabled, updateFromSelection])
+  }, [enabled, disabled, updateFromSelection])
 
   const handleReply = () => {
     if (!popover) return
@@ -141,7 +143,7 @@ export const SelectionReplyArea: React.FC<Props> = ({
   return (
     <div ref={containerRef} className={`relative ${className || ""}`}>
       {children}
-      {enabled && popover && (
+      {enabled && !disabled && popover && (
         <button
           type="button"
           // Prevent the mousedown from collapsing the selection before click.

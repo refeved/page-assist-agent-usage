@@ -6,9 +6,15 @@ import { getInitialConfig } from "@/services/action"
 import { getCustomCopilotPrompts, getCopilotPromptsEnabledState, type CustomCopilotPrompt } from "@/services/application"
 import { startMcpOAuthFlow, disconnectMcpOAuth } from "@/libs/mcp/oauth-flow"
 import { McpServerDb } from "@/db/dexie/mcp"
+import { restrictCredentialAccess } from "@/services/qwenpaw/config"
 
 export default defineBackground({
   main() {
+    if (typeof chrome.storage.local.setAccessLevel === "function") {
+      void restrictCredentialAccess().catch(error => {
+        console.error("[QwenPaw] Failed to restrict extension-local credential access", error)
+      })
+    }
     const storage = new Storage({
       area: "local"
     })

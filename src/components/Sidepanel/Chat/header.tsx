@@ -1,4 +1,5 @@
-import logoImage from "~/assets/icon.png"
+import { SidepanelHeaderFrame } from "./header-frame"
+import qwenPawIcon from "~/assets/qwenpaw-paw.png"
 import { useMessage } from "~/hooks/useMessage"
 import { Link } from "react-router-dom"
 import { Tooltip, Drawer, notification } from "antd"
@@ -69,19 +70,21 @@ export const SidepanelHeader = ({
   const setSidebarOpen = propSetSidebarOpen || setLocalSidebarOpen
 
   return (
-    <div
-      data-istemporary-chat={temporaryChat}
-      className=" px-3 justify-between bg-white dark:bg-[#1a1a1a] border-b border-gray-300 dark:border-gray-700 py-4 items-center absolute top-0 z-10 flex h-14 w-full data-[istemporary-chat='true']:bg-violet-100 data-[istemporary-chat='true']:border-violet-300 data-[istemporary-chat='true']:dark:bg-black data-[istemporary-chat='true']:dark:border-gray-700">
-      <div className="focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-700 flex items-center dark:text-white">
-        <img
-          className="h-6 w-auto"
-          src={logoImage}
-          alt={t("common:pageAssist")}
-        />
-        <span className="ml-1 text-sm ">{t("common:pageAssist")}</span>
-      </div>
-
+    <SidepanelHeaderFrame temporaryChat={temporaryChat}>
       <div className="flex items-center space-x-3">
+        <Tooltip title={t("qwenpaw:remote")}>
+          <Link
+            to="/qwenpaw"
+            aria-label={t("qwenpaw:remote")}
+            className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-700">
+            <img
+              src={qwenPawIcon}
+              alt=""
+              aria-hidden="true"
+              className="size-5 object-contain"
+            />
+          </Link>
+        </Tooltip>
         {webuiBtnSidePanel ? (
           <Tooltip title={t("tooltip.openwebui")}>
             <button
@@ -210,6 +213,6 @@ export const SidepanelHeader = ({
           selectedModel={selectedModel}
         />
       </Drawer>
-    </div>
+    </SidepanelHeaderFrame>
   )
 }

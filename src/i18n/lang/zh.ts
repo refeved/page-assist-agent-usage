@@ -6,9 +6,11 @@ import settings from "@/assets/locale/zh/settings.json";
 import knowledge from "@/assets/locale/zh/knowledge.json";
 import chrome from "@/assets/locale/zh/chrome.json";
 import openai from "@/assets/locale/zh/openai.json";
+import qwenpaw from "@/assets/locale/zh/qwenpaw.json";
 
 
 export const zh = {
+    qwenpaw,
     option,
     playground,
     common,

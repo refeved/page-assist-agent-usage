@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown"
 import rehypeKatex from "rehype-katex"
 
 import "property-information"
-import React from "react"
+import React, { createContext, useContext } from "react"
 import { CodeBlock } from "./CodeBlock"
 import { TableBlock } from "./TableBlock"
 import { preprocessLaTeX } from "@/utils/latex"
@@ -19,6 +19,7 @@ import { useStorage } from "@plasmohq/storage/hook"
 // a response is streaming and re-highlights every code block per token.
 const remarkPlugins = [remarkGfm, remarkMath]
 const rehypePlugins = [rehypeKatex]
+export const RemoteMarkdownContext = createContext(false)
 
 const markdownComponents: React.ComponentProps<
   typeof ReactMarkdown
@@ -58,6 +59,30 @@ const markdownComponents: React.ComponentProps<
   }
 }
 
+const remoteMarkdownComponents: typeof markdownComponents = {
+  ...markdownComponents,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  img: ({ alt }) => <span>[{alt || "image"}]</span>,
+  code({ inline, className, children }) {
+    const language = /language-(\w+)/.exec(className || "")?.[1] || ""
+    return inline ? (
+      <code dir="ltr" className={`${className || ""} font-semibold`}>
+        {children}
+      </code>
+    ) : (
+      <CodeBlock
+        language={language}
+        value={String(children).replace(/\n$/, "")}
+        allowPreview={false}
+      />
+    )
+  }
+}
+
 function Markdown({
   message,
   className = "prose break-words dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 dark:prose-dark"
@@ -66,6 +91,7 @@ function Markdown({
   className?: string
 }) {
   const [checkWideMode] = useStorage("checkWideMode", false)
+  const remote = useContext(RemoteMarkdownContext)
   if (checkWideMode) {
     className += " max-w-none"
   }
@@ -73,10 +99,11 @@ function Markdown({
   return (
     <React.Fragment>
       <ReactMarkdown
+        skipHtml={remote}
         className={className}
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
-        components={markdownComponents}>
+        components={remote ? remoteMarkdownComponents : markdownComponents}>
         {message}
       </ReactMarkdown>
     </React.Fragment>

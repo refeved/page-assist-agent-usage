@@ -6,8 +6,10 @@ import settings from "@/assets/locale/en/settings.json";
 import knowledge from "@/assets/locale/en/knowledge.json";
 import chrome from "@/assets/locale/en/chrome.json";
 import openai from "@/assets/locale/en/openai.json";
+import qwenpaw from "@/assets/locale/en/qwenpaw.json";
 
 export const en = {
+    qwenpaw,
     option,
     playground,
     common,
