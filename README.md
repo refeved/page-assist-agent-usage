@@ -17,6 +17,14 @@
 
 Page Assist is an open-source browser extension that provides a sidebar and web UI for your local AI model. It allows you to interact with your model from any webpage.
 
+> **Unofficial fork.** This repository is a personal fork of
+> [n4ze3m/page-assist](https://github.com/n4ze3m/page-assist) maintained by
+> [refeved](https://github.com/refeved). It adds the QwenPaw remote channel
+> described below and is not affiliated with or endorsed by the upstream
+> project. Upstream code remains under the MIT license in `LICENCE`.
+> QwenPaw is a separate project; this fork is not affiliated with or endorsed
+> by it either.
+
 ## Installation
 
 Page Assist supports Chromium-based browsers like Chrome, Brave, and Edge, as well as Firefox.
