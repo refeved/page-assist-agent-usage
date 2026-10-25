@@ -1,4 +1,12 @@
-# QwenPaw Remote — basic channel integration
+# Remote Agent — QwenPaw channel integration
+
+## 命名与定位
+
+界面上的 Provider 名称是 **Remote Agent**，与 **Local models** 并列；**QwenPaw 是
+首个可用的后端实现**，不是 Provider 本身。为保持兼容，协议、存储键
+（`qwenpaw.mode`、`qwenpaw.connection`、`qwenpaw.credential`）、路由
+（`/qwenpaw`、`/settings/qwenpaw`）和前端客户端（`QwenPawClient`、
+`useQwenPawChat`）仍沿用 `qwenpaw` 命名空间；后续新增后端不改动这些既有标识。
 
 ## 当前状态
 
@@ -20,13 +28,26 @@ OpenAI API 不能替代此地址。安装及配置参见插件 README。
 真实模型、记忆和审批服务仍需在已配置的 QwenPaw 环境中验收；确定性测试不代表
 这些能力已联调通过。
 
-在 Chrome 侧边栏顶部点击 **QwenPaw** 进入；首次仍为普通模型模式。
-入口采用上游 `website/public/paw.png` 爪子图标，悬停显示模式名称。
-图标保存在 `src/assets/qwenpaw-paw.png`，沿用 QwenPaw 的 Apache-2.0
-许可，许可副本为 `src/assets/qwenpaw-paw.LICENSE`。
+**入口**：Chrome 侧边栏 header 左侧、Page Assist 字样之后是两态切换器
+（Local models ↔ Remote Agent），Remote Agent 一侧沿用 `website/public/paw.png`
+爪子图标，悬停显示名称；图标保存在 `src/assets/qwenpaw-paw.png`，沿用 QwenPaw 的
+Apache-2.0 许可，许可副本为 `src/assets/qwenpaw-paw.LICENSE`。切换只重写
+`qwenpaw.mode`（同时把聊天模式重置为 normal）并跳转到对应路由，两种引擎各自持有
+会话，互不销毁。Firefox 版本不提供 Remote Agent 入口（MV2 缺少
+`chrome.storage.local.setAccessLevel`），options 与侧栏设置页也不显示该 Tab。
+
+**首次引导**：本地既没有 provider 记录、也没有保存过 Ollama URL 时，侧栏空态顶部
+显示 “Choose how you want to chat” 卡片，Local models 与 Remote Agent 并列；选中
+Remote Agent 且尚未配置时，连接表单直接内联展开，保存成功后进入远程聊天。
+已有配置时不再显示该卡片，仍可通过切换器随时改选。
+
+**配置入口**：Remote Agent 与 Ollama、OpenAI compatible API 一样拥有独立设置 Tab
+（`/settings/qwenpaw`），options 页与侧栏设置页共用同一份连接表单，不再混入
+General Settings（侧栏的 Ollama 配置所在页）。
+
 远程页面不挂载普通聊天发送容器，不调用本地 RAG、MCP、记忆或默认 Prompt，
 不接收普通右键摘要／翻译的自动提交事件。选区分享使用远程页面中的独立读取按钮。
-返回普通模式不改动原模型配置；Web UI 不新增远程发送入口。
+返回 Local models 不改动原模型配置；Web UI 不新增远程发送入口。
 
 ### 原生聊天界面复用
 
@@ -40,7 +61,8 @@ Enter／Shift+Enter／输入法处理、聚焦快捷键和智能滚动复用原�
 Agent 图标菜单取代模型菜单；第一条消息自动创建频道会话，后续问题沿用该会话。
 已有会话的 Agent 绑定不可改变；顶部新建按钮返回空白聊天，可重新选择 Agent，
 发送第一条问题时才创建绑定到该 Agent 的会话。
-顶部历史按钮切换远程会话，信息按钮显示频道限制、发送按键偏好和连接状态。
+顶部动作依次为新建远程聊天、远程会话历史、连接详情（频道限制、发送按键偏好、
+连接状态）和设置；设置按钮进入侧栏设置页，Remote Agent 的配置在其中的独立 Tab。
 
 输入框网页文档图标打开当前网页／选区读取和预览，发送下拉也提供“与当前网页聊天”
 入口。Remote 不显示 Search Internet 和 MCP 入口，包括小屏“更多”菜单；
@@ -58,6 +80,23 @@ OCR 选项同样禁用并说明原因。本轮不新增附件传输接口，也�
 粘贴／拖入文件明确报错。远程消息使用同一 Markdown／CodeBlock 组件的安全模式：
 不加载消息图片、不执行 HTML／SVG 预览、不自动朗读，不写入普通聊天的引用回复状态。
 原生本地聊天保留默认渲染和工具行为。
+
+### 能力矩阵
+
+`src/services/provider-capabilities.ts` 是 Provider 能力的唯一判定来源：Local models
+除“审批卡片”外全部开启，Remote Agent 只保留聊天、页面上下文、历史、新建会话与
+审批卡片。
+
+| 能力 | Local models | Remote Agent |
+| --- | --- | --- |
+| 聊天、页面上下文、会话历史、新建会话 | 支持 | 支持 |
+| RAG、联网搜索、MCP、提示词、临时聊天、逐会话模型参数 | 支持 | 不支持 |
+| 视觉问答／OCR、语音输入、TTS | 支持 | 不支持 |
+| 文件与图片上传、Page Action、WebMCP | 支持 | 不支持 |
+
+不支持项在输入工具栏以禁用状态展示并给出原因（小屏收进“更多”菜单），空态与设置页
+不再渲染对应入口，避免用户误以为可用。审批能力由频道声明的 `approvals` 决定；
+基础频道固定声明 `approvals=false`，审批仍需在原生 Console 处理。
 
 ## Configuration and privacy
 
@@ -321,4 +360,10 @@ and Web UI must also be manually regression-tested with the intended model servi
 
 Reload the extension at `chrome://extensions/`, reopen the side panel and refresh
 the target webpage after building. Load `build/chrome-mv3`, not the outer `build`
-directory. The baseline manifest version remains `1.5.88`; no release is implied.
+directory. The baseline manifest version remains `1.5.88` (`wxt.config.ts`, not
+`package.json`); no release is implied.
+
+The fork milestone is marked by the annotated tag `remote-agent-preview-1` on
+`feat/qwenpaw-remote-channel`. Feature development continues on that branch while
+`main` only mirrors upstream, so the tag — not a version bump — identifies this
+first functional implementation.

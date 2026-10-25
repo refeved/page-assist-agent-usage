@@ -19,11 +19,11 @@ Page Assist is an open-source browser extension that provides a sidebar and web 
 
 > **Unofficial fork.** This repository is a personal fork of
 > [n4ze3m/page-assist](https://github.com/n4ze3m/page-assist) maintained by
-> [refeved](https://github.com/refeved). It adds the QwenPaw remote channel
-> described below and is not affiliated with or endorsed by the upstream
-> project. Upstream code remains under the MIT license in `LICENCE`.
-> QwenPaw is a separate project; this fork is not affiliated with or endorsed
-> by it either.
+> [refeved](https://github.com/refeved). It adds a Remote Agent provider
+> described below, with QwenPaw as its first backend, and is not affiliated with
+> or endorsed by the upstream project. Upstream code remains under the MIT
+> license in `LICENCE`. QwenPaw is a separate project; this fork is not
+> affiliated with or endorsed by it either.
 
 ## Installation
 
@@ -117,25 +117,39 @@ _Note: If you face any issues with Bun, use `npm` instead of `bun`._
 
 ## Usage
 
-### QwenPaw Remote (fork preview)
+### Remote Agent (fork preview)
 
-This fork adds an isolated **QwenPaw** entry in the Chrome side panel header.
-Ordinary model chat and the standalone Web UI retain their existing send paths.
-Open the QwenPaw entry, configure a service origin and a restricted browser
-credential, then select an authorized Agent and explicitly create a remote chat.
-No Ollama configuration is required for this mode.
+This fork adds a second chat provider next to **Local models**: **Remote Agent**.
+The two-state switch sits at the left of the Chrome side panel header, right after
+the Page Assist wordmark, and the standalone Web UI keeps its existing send path.
 
-The first backend is an independently installable **Page Assist channel plugin**
-in the standalone companion repository `qwenpaw-channel-page-assist`. It runs in
-the QwenPaw process on a dedicated port (default `127.0.0.1:8766`), bound to one
-Agent. It supports text, explicit webpage sharing and follow-up chat with complete
-replies. Disconnect/restart recovery and browser approval cards are deferred;
-native approvals must be handled separately in the Console. A normal Console
-or OpenAI-compatible URL is not a channel endpoint. Failures are explicit, with
-no local fallback or simulated answers.
+- **First run**: when no provider has been chosen and no Ollama URL is saved, the
+  sidebar asks "Choose how you want to chat" with one card per provider. Picking
+  Remote Agent opens the connection form inline; saving it enters the remote chat.
+  The choice is remembered and can be changed from the header switch at any time.
+- **Configuration**: Remote Agent has its own settings tab next to Ollama and
+  OpenAI compatible API, both in the options page and in the side panel settings.
+- **Unsupported local features are explicit**: image, file, screenshot/vision and
+  speech entries stay visible but disabled with a reason, while RAG, web search,
+  MCP, prompts, temporary chat, per-chat model settings, Page Action and WebMCP are
+  not offered in Remote Agent because those tools run on the Agent side.
+
+No Ollama configuration is required for the remote mode.
+
+**QwenPaw is the first Remote Agent backend**, implemented as an independently
+installable **Page Assist channel plugin** in the standalone companion repository
+`qwenpaw-channel-page-assist`. It runs in the QwenPaw process on a dedicated port
+(default `127.0.0.1:8766`), bound to one Agent. It supports text, explicit webpage
+sharing and follow-up chat with complete replies. Disconnect/restart recovery and
+browser approval cards are deferred; native approvals must be handled separately
+in the Console. A normal Console or OpenAI-compatible URL is not a channel
+endpoint. Failures are explicit, with no local fallback or simulated answers.
+
+Preview milestone: tag `remote-agent-preview-1`. Feature development continues on
+`feat/qwenpaw-remote-channel`; `main` only mirrors upstream.
 
 For the frontend API contract, limitations, privacy behavior, build commands and
-validation instructions, see [QwenPaw Remote](docs/qwenpaw-remote.md).
+validation instructions, see [Remote Agent](docs/qwenpaw-remote.md).
 
 ### Sidebar
 
