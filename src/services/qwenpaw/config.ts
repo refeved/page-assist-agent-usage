@@ -11,6 +11,8 @@ export async function restrictCredentialAccess() {
   }
   await chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
 }
+// MODE_KEY now records the active chat provider (`local` | `remote`) rather
+// than which page to open; `services/provider.ts` owns that semantic.
 export const getMode = () => storage.get<string>(MODE_KEY)
 export const setMode = (mode: "local" | "remote") => storage.set(MODE_KEY, mode)
 export async function loadConnection() {

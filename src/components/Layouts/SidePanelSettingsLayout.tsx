@@ -2,6 +2,7 @@ import {
   BrainCircuitIcon,
   OrbitIcon,
   CpuIcon,
+  Bot,
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
@@ -17,7 +18,7 @@ export const SidePanelSettingsLayout = ({
   children: React.ReactNode
 }) => {
   const location = useLocation()
-  const { t } = useTranslation(["settings", "common", "openai"])
+  const { t } = useTranslation(["settings", "common", "openai", "qwenpaw"])
   const { isRTL } = useUiDirection()
 
   return (
@@ -66,6 +67,15 @@ export const SidePanelSettingsLayout = ({
                     icon={OrbitIcon}
                     current={location.pathname}
                   />
+
+                  {import.meta.env.BROWSER !== "firefox" && (
+                    <LinkComponent
+                      href="/settings/qwenpaw"
+                      name={t("qwenpaw:remote")}
+                      icon={Bot}
+                      current={location.pathname}
+                    />
+                  )}
 
                   <LinkComponent
                     href="/settings/openai"

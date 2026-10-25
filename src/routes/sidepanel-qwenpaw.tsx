@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
 import {
   Alert,
   Button,
@@ -15,11 +14,7 @@ import {
 } from "antd"
 import {
   ChevronDown,
-  CogIcon,
   Globe,
-  HistoryIcon,
-  InfoIcon,
-  PlusSquare,
   StopCircleIcon,
   PlusIcon,
   EyeOffIcon,
@@ -52,9 +47,10 @@ import {
   SidepanelSendButton,
   UnavailableComposerAction
 } from "@/components/Sidepanel/Chat/composer"
-import { SidepanelHeaderFrame } from "@/components/Sidepanel/Chat/header-frame"
+import { RemoteSidepanelHeader } from "@/components/Sidepanel/Chat/header"
 import pawIcon from "@/assets/qwenpaw-paw.png"
 import { setMode } from "@/services/qwenpaw/config"
+import { capabilitiesOf } from "@/services/provider-capabilities"
 import {
   capture,
   truncateCapture,
@@ -71,7 +67,6 @@ export default function QwenPawSidebar() {
   const { t: playground } = useTranslation("playground")
   const [useCompactActions] = useStorage("optimizeQueueForSmallScreen", false)
   const chat = useQwenPawChat()
-  const navigate = useNavigate()
   const { sendWhenEnter, setSendWhenEnter } = useWebUI()
   const [agentId, setAgentId] = useState<string>()
   const [question, setQuestion] = useState("")
@@ -235,40 +230,50 @@ export default function QwenPawSidebar() {
       setSending(false)
     }
   }
-  const local = async () => {
-    try {
-      await setMode("local")
-      navigate("/local")
-    } catch (e) {
-      setError(String(e))
-    }
-  }
   const iconClass = "size-4 text-gray-500 dark:text-gray-400"
   const openContext = () => {
     if (mode === "none") setContextMode("article")
     setContextOpen(true)
   }
+  // Only capabilities the remote channel lacks are advertised in the composer.
+  const capabilities = capabilitiesOf("remote")
   const unavailableActions = [
-    {
-      label: playground("tooltip.speechToText"),
-      reason: t("unavailableSpeech"),
-      icon: <MicIcon className="size-4" />
-    },
-    {
-      label: playground("tooltip.vision"),
-      reason: t("unavailableScreenshot"),
-      icon: <EyeOffIcon className="size-4" />
-    },
-    {
-      label: playground("tooltip.uploadImage"),
-      reason: t("unavailableImages"),
-      icon: <ImageIcon className="size-4" />
-    },
-    {
-      label: t("uploadFile"),
-      reason: t("unavailableFiles"),
-      icon: <PaperclipIcon className="size-4" />
-    }
+    ...(capabilities.speechToText
+      ? []
+      : [
+          {
+            label: playground("tooltip.speechToText"),
+            reason: t("unavailableSpeech"),
+            icon: <MicIcon className="size-4" />
+          }
+        ]),
+    ...(capabilities.vision
+      ? []
+      : [
+          {
+            label: playground("tooltip.vision"),
+            reason: t("unavailableScreenshot"),
+            icon: <EyeOffIcon className="size-4" />
+          }
+        ]),
+    ...(capabilities.imageUpload
+      ? []
+      : [
+          {
+            label: playground("tooltip.uploadImage"),
+            reason: t("unavailableImages"),
+            icon: <ImageIcon className="size-4" />
+          }
+        ]),
+    ...(capabilities.fileUpload
+      ? []
+      : [
+          {
+            label: t("uploadFile"),
+            reason: t("unavailableFiles"),
+            icon: <PaperclipIcon className="size-4" />
+          }
+        ])
   ]
   const composerOptions = (
     <div className="w-60 space-y-2">
@@ -303,44 +308,12 @@ export default function QwenPawSidebar() {
   return (
     <RemoteMarkdownContext.Provider value>
       <main className="relative flex h-screen flex-col overflow-hidden bg-white text-sm text-gray-900 dark:bg-[#1a1a1a] dark:text-gray-100">
-        <SidepanelHeaderFrame>
-          <div className="flex items-center gap-3">
-            <Tooltip title={t("local")}>
-              <button
-                aria-label={t("local")}
-                onClick={() => void local()}
-                className="rounded-full bg-gray-100 p-1 dark:bg-[#303030]">
-                <img src={pawIcon} alt="" className="size-5 object-contain" />
-              </button>
-            </Tooltip>
-            <Tooltip title={t("newChat")}>
-              <button
-                aria-label={t("newChat")}
-                disabled={!agentId || sending || chat.busy}
-                onClick={newChat}
-                className="disabled:opacity-40">
-                <PlusSquare className={iconClass} />
-              </button>
-            </Tooltip>
-            <Tooltip title={t("conversation")}>
-              <button
-                aria-label={t("conversation")}
-                onClick={() => setHistoryOpen(true)}>
-                <HistoryIcon className={iconClass} />
-              </button>
-            </Tooltip>
-            <Tooltip title={t("connectionDetails")}>
-              <button
-                aria-label={t("connectionDetails")}
-                onClick={() => setDetailsOpen(true)}>
-                <InfoIcon className={iconClass} />
-              </button>
-            </Tooltip>
-            <Link to="/settings/qwenpaw" aria-label={t("settings")}>
-              <CogIcon className={iconClass} />
-            </Link>
-          </div>
-        </SidepanelHeaderFrame>
+        <RemoteSidepanelHeader
+          newChatDisabled={!agentId || sending || chat.busy}
+          onNewChat={newChat}
+          onHistory={() => setHistoryOpen(true)}
+          onDetails={() => setDetailsOpen(true)}
+        />
         <div
           ref={containerRef}
           className="custom-scrollbar relative mt-14 flex min-h-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-5">
@@ -366,7 +339,9 @@ export default function QwenPawSidebar() {
                   alt=""
                   className="size-12 object-contain opacity-80"
                 />
-                <h1 className="text-xl font-semibold">QwenPaw</h1>
+                <h1 className="text-xl font-semibold">
+                  {t("provider.remote")}
+                </h1>
                 <p className="max-w-xs text-gray-500 dark:text-gray-400">
                   {t("nativeWelcome")}
                 </p>

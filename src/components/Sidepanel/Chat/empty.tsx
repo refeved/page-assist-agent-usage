@@ -24,12 +24,20 @@ import {
   setOllamaURL as saveOllamaURL,
   fetchChatModels
 } from "~/services/ollama"
+import { ProviderSetup } from "./provider-setup"
+import { setProvider, type ProviderId } from "@/services/provider"
+import { capabilitiesOf } from "@/services/provider-capabilities"
+import { getMode } from "@/services/qwenpaw/config"
+import { Storage } from "@plasmohq/storage"
 
 export const EmptySidePanel = () => {
   const [ollamaURL, setOllamaURL] = useState<string>("")
-  const { t } = useTranslation(["playground", "common"])
+  const { t } = useTranslation(["playground", "common", "qwenpaw"])
   const queryClient = useQueryClient()
   const [checkOllamaStatus] = useStorage("checkOllamaStatus", true)
+  const [provider, setProviderChoice] = useState<ProviderId>("local")
+  const [firstRun, setFirstRun] = useState(false)
+  const capabilities = capabilitiesOf(provider)
   const { pageAction, setPageAction, webMcp, setWebMcp } =
     useStoreMessageOption()
   const [pageActionMasterEnabled] = useStorage("pageActionEnabled", true)
@@ -109,6 +117,30 @@ export const EmptySidePanel = () => {
     return () => clearInterval(interval)
   }, [showInstallModal])
 
+  useEffect(() => {
+    let live = true
+    Promise.all([getMode(), new Storage().get<string>("ollamaURL")])
+      .then(([mode, savedURL]) => {
+        if (!live) return
+        setProviderChoice(mode === "remote" ? "remote" : "local")
+        // Only a profile with neither a provider nor a model endpoint gets the
+        // chooser; afterwards just the active provider block is expanded.
+        setFirstRun(!mode && !savedURL)
+      })
+      .catch(() => {
+        if (live) setFirstRun(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const selectProvider = (next: ProviderId) => {
+    setProviderChoice(next)
+    // Remember an explicit local choice so the chooser stops reappearing.
+    if (next === "local") setProvider("local").catch(() => {})
+  }
+
   const {
     data: ollamaInfo,
     status: ollamaStatus,
@@ -182,44 +214,48 @@ export const EmptySidePanel = () => {
           }))}
         />
 
-        <div className="mt-4">
-          <div className="inline-flex items-center">
-            <label
-              className="relative flex items-center p-3 rounded-full cursor-pointer"
-              htmlFor="check">
-              <input
-                type="checkbox"
-                checked={chatMode === "rag"}
-                onChange={(e) => {
-                  setChatMode(e.target.checked ? "rag" : "normal")
-                }}
-                className="before:content[''] peer relative h-5 w-5 cursor-pointer appearance-none rounded-md border border-blue-gray-200 transition-all before:absolute before:top-2/4 before:left-2/4 before:block before:h-12 before:w-12 before:-translate-y-2/4 before:-translate-x-2/4 before:rounded-full before:bg-blue-gray-500 before:opacity-0 before:transition-opacity"
-                id="check"
-              />
-              <span className="absolute text-white transition-opacity opacity-0 pointer-events-none top-2/4 left-2/4 -translate-y-2/4 -translate-x-2/4 peer-checked:opacity-100 ">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-3.5 w-3.5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  stroke="currentColor"
-                  strokeWidth="1">
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"></path>
-                </svg>
-              </span>
-            </label>
-            <label
-              className="mt-px font-light  cursor-pointer select-none text-gray-900 dark:text-gray-400"
-              htmlFor="check">
-              {t("common:chatWithCurrentPage")}
-            </label>
+        {capabilities.rag && (
+          <div className="mt-4">
+            <div className="inline-flex items-center">
+              <label
+                className="relative flex items-center p-3 rounded-full cursor-pointer"
+                htmlFor="check">
+                <input
+                  type="checkbox"
+                  checked={chatMode === "rag"}
+                  onChange={(e) => {
+                    setChatMode(e.target.checked ? "rag" : "normal")
+                  }}
+                  className="before:content[''] peer relative h-5 w-5 cursor-pointer appearance-none rounded-md border border-blue-gray-200 transition-all before:absolute before:top-2/4 before:left-2/4 before:block before:h-12 before:w-12 before:-translate-y-2/4 before:-translate-x-2/4 before:rounded-full before:bg-blue-gray-500 before:opacity-0 before:transition-opacity"
+                  id="check"
+                />
+                <span className="absolute text-white transition-opacity opacity-0 pointer-events-none top-2/4 left-2/4 -translate-y-2/4 -translate-x-2/4 peer-checked:opacity-100 ">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    stroke="currentColor"
+                    strokeWidth="1">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"></path>
+                  </svg>
+                </span>
+              </label>
+              <label
+                className="mt-px font-light  cursor-pointer select-none text-gray-900 dark:text-gray-400"
+                htmlFor="check">
+                {t("common:chatWithCurrentPage")}
+              </label>
+            </div>
           </div>
-        </div>
+        )}
 
-        {isPageActionSupported() && pageActionMasterEnabled && (
+        {capabilities.pageAction &&
+          isPageActionSupported() &&
+          pageActionMasterEnabled && (
           <div className="mt-1">
             <div className="inline-flex items-center">
               <label
@@ -258,7 +294,7 @@ export const EmptySidePanel = () => {
           </div>
         )}
 
-        {isWebMcpAvailable() && webMcpMasterEnabled && (
+        {capabilities.webMcp && isWebMcpAvailable() && webMcpMasterEnabled && (
           <div className="mt-1">
             <div className="inline-flex items-center">
               <label
@@ -361,10 +397,18 @@ export const EmptySidePanel = () => {
               {t("welcome")}
             </p>
           </div>
-          {ollamaStatus === "pending" && (
+          {(firstRun || provider === "remote") && (
+            <div className="mt-4 w-full">
+              <ProviderSetup selected={provider} onSelect={selectProvider} />
+            </div>
+          )}
+          {provider === "local" && ollamaStatus === "pending" && (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           )}
-          {ollamaStatus === "success" && ollamaInfo.isOk && renderSection()}
+          {provider === "local" &&
+            ollamaStatus === "success" &&
+            ollamaInfo.isOk &&
+            renderSection()}
         </div>
       </div>
     )
@@ -373,7 +417,12 @@ export const EmptySidePanel = () => {
   return (
     <div className="mx-auto sm:max-w-lg px-4 mt-10">
       <div className="rounded-lg  justify-center items-center flex flex-col border border-gray-300 dark:border-gray-700 p-8 bg-white dark:bg-[#262626] shadow-sm">
-        {(ollamaStatus === "pending" || isRefetching) && (
+        {(firstRun || provider === "remote") && (
+          <div className="mb-2 w-full">
+            <ProviderSetup selected={provider} onSelect={selectProvider} />
+          </div>
+        )}
+        {provider === "local" && (ollamaStatus === "pending" || isRefetching) && (
           <div className="inline-flex items-center space-x-2">
             <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"></div>
             <p className="dark:text-gray-400 text-gray-900">
@@ -381,18 +430,27 @@ export const EmptySidePanel = () => {
             </p>
           </div>
         )}
-        {!isRefetching && ollamaStatus === "success" && ollamaInfo.isOk && (
-          <div className="inline-flex  items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <p className="dark:text-gray-400 text-gray-900">
-              {t("ollamaState.running")}
-            </p>
-          </div>
-        )}
+        {provider === "local" &&
+          !isRefetching &&
+          ollamaStatus === "success" &&
+          ollamaInfo.isOk && (
+            <div className="inline-flex  items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <p className="dark:text-gray-400 text-gray-900">
+                {t("ollamaState.running")}
+              </p>
+            </div>
+          )}
 
-        {!isRefetching && ollamaStatus === "success" && renderSection()}
+        {provider === "local" &&
+          !isRefetching &&
+          ollamaStatus === "success" &&
+          renderSection()}
 
-        {!isRefetching && ollamaStatus === "success" && !ollamaInfo.isOk && (
+        {provider === "local" &&
+          !isRefetching &&
+          ollamaStatus === "success" &&
+          !ollamaInfo.isOk && (
           <div className="mt-4 flex flex-col space-y-2 justify-center items-center w-full">
             <div className="inline-flex items-center space-x-2">
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>

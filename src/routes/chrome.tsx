@@ -21,6 +21,7 @@ import SidepanelSettingsModel from "./sidepanel-settings-model"
 import SidepanelEntry from "./sidepanel-entry"
 import QwenPawSidebar from "./sidepanel-qwenpaw"
 import QwenPawSettings from "./sidepanel-settings-qwenpaw"
+import OptionQwenPawSettings from "./option-settings-qwenpaw"
 
 export const OptionRoutingChrome = () => {
   return (
@@ -30,6 +31,7 @@ export const OptionRoutingChrome = () => {
       <Route path="/settings/model" element={<OptionModal />} />
       <Route path="/settings/prompt" element={<OptionPrompt />} />
       <Route path="/settings/ollama" element={<OptionOllamaSettings />} />
+      <Route path="/settings/qwenpaw" element={<OptionQwenPawSettings />} />
       <Route path="/settings/chrome" element={<OptionChrome />} />
       <Route path="/settings/page-action" element={<OptionPageAction />} />
       <Route path="/settings/webmcp" element={<OptionWebMcp />} />

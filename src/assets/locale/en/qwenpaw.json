@@ -1,6 +1,22 @@
 {
   "local": "Local models",
-  "remote": "QwenPaw Remote",
+  "remote": "Remote Agent",
+  "provider": {
+    "local": "Local models",
+    "remote": "Remote Agent",
+    "switch": "Switch chat provider",
+    "notConfigured": "Configure a Remote Agent first",
+    "localDescription": "Ollama, Chrome AI or OpenAI-compatible models running on this machine.",
+    "remoteDescription": "Chat with an Agent on a remote service. QwenPaw is the first supported backend."
+  },
+  "settingsSection": {
+    "description": "QwenPaw is the first Remote Agent backend. Configure its service origin and browser credential below."
+  },
+  "firstRun": {
+    "title": "Choose how you want to chat",
+    "description": "You can switch providers at any time from the sidebar header.",
+    "continue": "Open remote chat"
+  },
   "notAvailable": "Not available",
   "uploadFile": "Upload file",
   "unavailableImages": "This channel does not yet transmit image attachments.",
@@ -16,6 +32,7 @@
   "enterSend": "Enter to send",
   "enterNewline": "Enter for newline",
   "settings": "Connection settings",
+  "openSettings": "Open settings",
   "back": "Back",
   "service": "Service origin",
   "credential": "Browser-specific credential",

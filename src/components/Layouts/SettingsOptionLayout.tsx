@@ -1,5 +1,6 @@
 import {
   BookIcon,
+  Bot,
   BrainCircuitIcon,
   OrbitIcon,
   ShareIcon,
@@ -21,7 +22,7 @@ import { MCPIcon } from "../Icons/MCPIcon"
 
 export const SettingsLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation()
-  const { t } = useTranslation(["settings", "common", "openai"])
+  const { t } = useTranslation(["settings", "common", "openai", "qwenpaw"])
   return (
     <div className="flex min-h-screen  w-full flex-col">
       <main className="relative w-full flex-1">
@@ -50,6 +51,15 @@ export const SettingsLayout = ({ children }: { children: React.ReactNode }) => {
                     icon={OllamaIcon}
                     current={location.pathname}
                   />
+                  {import.meta.env.BROWSER !== "firefox" && (
+                    <LinkComponent
+                      href="/settings/qwenpaw"
+                      name={t("qwenpaw:remote")}
+                      icon={Bot}
+                      current={location.pathname}
+                      beta
+                    />
+                  )}
                   {import.meta.env.BROWSER !== "firefox" && (
                     <LinkComponent
                       href="/settings/chrome"

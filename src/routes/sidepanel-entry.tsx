@@ -2,16 +2,22 @@ import { useEffect, useState } from "react"
 import { Navigate } from "react-router-dom"
 import { Alert, Spin } from "antd"
 import SidepanelChat from "./sidepanel-chat"
-import { getMode } from "@/services/qwenpaw/config"
+import { resolveProvider, type ProviderId } from "@/services/provider"
 
+/**
+ * Single sidebar entry point: pick the shell for the active provider.
+ *
+ * A `remote` selection without a usable connection falls back to local models
+ * so a half-configured channel never renders a dead sidebar.
+ */
 export default function SidepanelEntry() {
-  const [mode, setMode] = useState<string>()
+  const [provider, setProvider] = useState<ProviderId>()
   const [error, setError] = useState("")
   useEffect(() => {
     let live = true
-    getMode()
+    resolveProvider()
       .then((value) => {
-        if (live) setMode(value || "local")
+        if (live) setProvider(value)
       })
       .catch((e) => {
         if (live) setError(String(e))
@@ -21,8 +27,8 @@ export default function SidepanelEntry() {
     }
   }, [])
   if (error) return <Alert type="error" message={error} />
-  if (!mode) return <Spin />
-  return mode === "remote" ? (
+  if (!provider) return <Spin />
+  return provider === "remote" ? (
     <Navigate to="/qwenpaw" replace />
   ) : (
     <SidepanelChat />

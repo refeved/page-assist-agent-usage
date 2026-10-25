@@ -818,8 +818,8 @@ try {
     remoteComposer,
     "local and remote must share composer width, toolbar layout and textarea styles"
   )
-  const remoteEntry = page.getByRole("link", {
-    name: "QwenPaw Remote",
+  const remoteEntry = page.getByRole("button", {
+    name: "Remote Agent",
     exact: true
   })
   await remoteEntry.waitFor()
@@ -828,11 +828,11 @@ try {
   await icon.evaluate((image) => image.decode())
   assert.equal(await icon.getAttribute("alt"), "")
   const iconSize = await icon.boundingBox()
-  assert.equal(iconSize.width, 20)
-  assert.equal(iconSize.height, 20)
+  assert.equal(iconSize.width, 16)
+  assert.equal(iconSize.height, 16)
   await remoteEntry.hover()
   await page
-    .getByRole("tooltip", { name: "QwenPaw Remote", exact: true })
+    .getByRole("tooltip", { name: "Remote Agent", exact: true })
     .waitFor()
   await remoteEntry.click()
   await page

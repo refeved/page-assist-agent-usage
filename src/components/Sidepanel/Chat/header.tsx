@@ -1,5 +1,4 @@
 import { SidepanelHeaderFrame } from "./header-frame"
-import qwenPawIcon from "~/assets/qwenpaw-paw.png"
 import { useMessage } from "~/hooks/useMessage"
 import { Link } from "react-router-dom"
 import { Tooltip, Drawer, notification } from "antd"
@@ -10,6 +9,7 @@ import {
   EraserIcon,
   // EraserIcon,
   HistoryIcon,
+  InfoIcon,
   PlusSquare,
   XIcon,
   MessageSquareShareIcon
@@ -22,6 +22,8 @@ import { PromptSelect } from "@/components/Common/PromptSelect"
 import { Sidebar } from "@/components/Option/Sidebar"
 import { BsIncognito } from "react-icons/bs"
 import { isFireFoxPrivateMode } from "@/utils/is-private-mode"
+import { ProviderSwitch } from "@/components/Common/ProviderSwitch"
+import { useProviderCapabilities } from "@/services/provider-capabilities"
 
 type SidepanelHeaderProps = {
   sidebarOpen?: boolean
@@ -57,6 +59,7 @@ export const SidepanelHeader = ({
     selectedModel
   } = useMessage()
   const { t } = useTranslation(["sidepanel", "common", "option"])
+  const { capabilities } = useProviderCapabilities("local")
   const [openModelSettings, setOpenModelSettings] = React.useState(false)
   const [localSidebarOpen, setLocalSidebarOpen] = React.useState(false)
   const [webuiBtnSidePanel, setWebuiBtnSidePanel] = useStorage(
@@ -70,21 +73,14 @@ export const SidepanelHeader = ({
   const setSidebarOpen = propSetSidebarOpen || setLocalSidebarOpen
 
   return (
-    <SidepanelHeaderFrame temporaryChat={temporaryChat}>
+    <SidepanelHeaderFrame
+      temporaryChat={temporaryChat}
+      left={
+        import.meta.env.BROWSER !== "firefox" ? (
+          <ProviderSwitch current="local" />
+        ) : undefined
+      }>
       <div className="flex items-center space-x-3">
-        <Tooltip title={t("qwenpaw:remote")}>
-          <Link
-            to="/qwenpaw"
-            aria-label={t("qwenpaw:remote")}
-            className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-700">
-            <img
-              src={qwenPawIcon}
-              alt=""
-              aria-hidden="true"
-              className="size-5 object-contain"
-            />
-          </Link>
-        </Tooltip>
         {webuiBtnSidePanel ? (
           <Tooltip title={t("tooltip.openwebui")}>
             <button
@@ -114,27 +110,29 @@ export const SidepanelHeader = ({
           </button>
         )}
 
-        <button
-          title={t("option:temporaryChat")}
-          onClick={() => {
-            if (isFireFoxPrivateMode) {
-              notification.error({
-                message: "Error",
-                description:
-                  "Page Assist can't save chat in Firefox Private Mode. Temporary chat is enabled by default. More fixes coming soon."
-              })
-              return
-            }
+        {capabilities.tempChat && (
+          <button
+            title={t("option:temporaryChat")}
+            onClick={() => {
+              if (isFireFoxPrivateMode) {
+                notification.error({
+                  message: "Error",
+                  description:
+                    "Page Assist can't save chat in Firefox Private Mode. Temporary chat is enabled by default. More fixes coming soon."
+                })
+                return
+              }
 
-            setTemporaryChat(!temporaryChat)
-            if (messages.length > 0) {
-              clearChat()
-            }
-          }}
-          data-istemporary-chat={temporaryChat}
-          className="flex items-center text-gray-500 dark:text-gray-400 space-x-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-700 rounded-full p-1 data-[istemporary-chat='true']:bg-violet-200 data-[istemporary-chat='true']:text-violet-700 data-[istemporary-chat='true']:dark:bg-violet-900 data-[istemporary-chat='true']:dark:text-violet-300">
-          <BsIncognito className="size-4 " />
-        </button>
+              setTemporaryChat(!temporaryChat)
+              if (messages.length > 0) {
+                clearChat()
+              }
+            }}
+            data-istemporary-chat={temporaryChat}
+            className="flex items-center text-gray-500 dark:text-gray-400 space-x-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-700 rounded-full p-1 data-[istemporary-chat='true']:bg-violet-200 data-[istemporary-chat='true']:text-violet-700 data-[istemporary-chat='true']:dark:bg-violet-900 data-[istemporary-chat='true']:dark:text-violet-300">
+            <BsIncognito className="size-4 " />
+          </button>
+        )}
 
         {history.length > 0 && (
           <button
@@ -155,14 +153,16 @@ export const SidepanelHeader = ({
             <HistoryIcon className="size-4 text-gray-500 dark:text-gray-400" />
           </button>
         </Tooltip>
-        <PromptSelect
-          selectedSystemPrompt={selectedSystemPrompt}
-          setSelectedSystemPrompt={setSelectedSystemPrompt}
-          setSelectedQuickPrompt={setSelectedQuickPrompt}
-          iconClassName="size-4"
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-        />
-        {!hideCurrentChatModelSettings && (
+        {capabilities.prompts && (
+          <PromptSelect
+            selectedSystemPrompt={selectedSystemPrompt}
+            setSelectedSystemPrompt={setSelectedSystemPrompt}
+            setSelectedQuickPrompt={setSelectedQuickPrompt}
+            iconClassName="size-4"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          />
+        )}
+        {capabilities.modelSettings && !hideCurrentChatModelSettings && (
           <Tooltip title={t("common:currentChatModelSettings")}>
             <button
               onClick={() => setOpenModelSettings(true)}
@@ -175,11 +175,13 @@ export const SidepanelHeader = ({
           <CogIcon className="size-4 text-gray-500 dark:text-gray-400" />
         </Link>
       </div>
-      <CurrentChatModelSettings
-        open={openModelSettings}
-        setOpen={setOpenModelSettings}
-        isOCREnabled={useOCR}
-      />
+      {capabilities.modelSettings && (
+        <CurrentChatModelSettings
+          open={openModelSettings}
+          setOpen={setOpenModelSettings}
+          isOCREnabled={useOCR}
+        />
+      )}
 
       <Drawer
         title={
@@ -213,6 +215,55 @@ export const SidepanelHeader = ({
           selectedModel={selectedModel}
         />
       </Drawer>
+    </SidepanelHeaderFrame>
+  )
+}
+
+type RemoteSidepanelHeaderProps = {
+  newChatDisabled?: boolean
+  onNewChat: () => void
+  onHistory: () => void
+  onDetails: () => void
+}
+
+/**
+ * Same frame, provider switch and settings entry as the local header. Only the
+ * actions the remote channel can honour replace the local-only controls.
+ */
+export const RemoteSidepanelHeader = ({
+  newChatDisabled,
+  onNewChat,
+  onHistory,
+  onDetails
+}: RemoteSidepanelHeaderProps) => {
+  const { t } = useTranslation("qwenpaw")
+  const iconClass = "size-4 text-gray-500 dark:text-gray-400"
+  return (
+    <SidepanelHeaderFrame left={<ProviderSwitch current="remote" />}>
+      <div className="flex items-center space-x-3">
+        <Tooltip title={t("newChat")}>
+          <button
+            aria-label={t("newChat")}
+            disabled={newChatDisabled}
+            onClick={onNewChat}
+            className="disabled:opacity-40">
+            <PlusSquare className={iconClass} />
+          </button>
+        </Tooltip>
+        <Tooltip title={t("conversation")}>
+          <button aria-label={t("conversation")} onClick={onHistory}>
+            <HistoryIcon className={iconClass} />
+          </button>
+        </Tooltip>
+        <Tooltip title={t("connectionDetails")}>
+          <button aria-label={t("connectionDetails")} onClick={onDetails}>
+            <InfoIcon className={iconClass} />
+          </button>
+        </Tooltip>
+        <Link to="/settings" aria-label={t("openSettings")}>
+          <CogIcon className={iconClass} />
+        </Link>
+      </div>
     </SidepanelHeaderFrame>
   )
 }

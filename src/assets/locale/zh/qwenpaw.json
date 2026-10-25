@@ -1,6 +1,22 @@
 {
   "local": "普通模型模式",
-  "remote": "QwenPaw 远程模式",
+  "remote": "远程 Agent",
+  "provider": {
+    "local": "本地模型",
+    "remote": "远程 Agent",
+    "switch": "切换聊天服务",
+    "notConfigured": "请先配置一个远程 Agent",
+    "localDescription": "运行在本机的 Ollama、Chrome AI 或 OpenAI 兼容模型。",
+    "remoteDescription": "与远程服务上的 Agent 对话。QwenPaw 是目前首个支持的后端。"
+  },
+  "settingsSection": {
+    "description": "QwenPaw 是首个可用的远程 Agent 后端，请在下方配置服务地址与浏览器凭据。"
+  },
+  "firstRun": {
+    "title": "选择聊天方式",
+    "description": "之后可随时在侧边栏顶部切换。",
+    "continue": "进入远程聊天"
+  },
   "notAvailable": "暂不可用",
   "uploadFile": "上传文件",
   "unavailableImages": "当前频道尚未接通图片附件传输。",
@@ -16,6 +32,7 @@
   "enterSend": "Enter 发送",
   "enterNewline": "Enter 换行",
   "settings": "连接设置",
+  "openSettings": "打开设置",
   "back": "返回",
   "service": "服务地址（仅 origin）",
   "credential": "浏览器专用凭据",
