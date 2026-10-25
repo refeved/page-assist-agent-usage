@@ -4,6 +4,7 @@ import { loadConnection } from "@/services/qwenpaw/config"
 import { QwenPawClient, RemoteHTTPError } from "@/services/qwenpaw/client"
 import { CONFIG_KEY, CREDENTIAL_KEY } from "@/services/qwenpaw/privacy"
 import { applyMessageEvent } from "@/services/qwenpaw/reducer"
+import { resolveAgentName } from "@/services/qwenpaw/agent-name"
 import { linkedController } from "@/services/qwenpaw/abort"
 import * as repo from "@/services/qwenpaw/repository"
 import { isTerminal } from "@/services/qwenpaw/types"
@@ -48,7 +49,7 @@ interface Decision {
   scope?: string
 }
 
-export function useQwenPawChat() {
+export function useQwenPawChat(agentDisplayName = "") {
   const [session, setSession] = useState<Session>()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [conversation, setConversation] = useState<Conversation>()
@@ -443,7 +444,7 @@ export function useQwenPawChat() {
         connectionId: session.config.id,
         principalScope: session.caps.principalScope,
         instanceId: session.caps.instanceId,
-        title: session.agents.find((a) => a.id === agentId)?.name || agentId,
+        title: resolveAgentName(agentId, session.agents, agentDisplayName),
         updatedAt: Date.now()
       }
       try {

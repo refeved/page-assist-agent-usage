@@ -19,6 +19,7 @@ import {
   request
 } from "../src/services/qwenpaw/validation.ts"
 import { isTerminal } from "../src/services/qwenpaw/types.ts"
+import { resolveAgentName } from "../src/services/qwenpaw/agent-name.ts"
 import type { RemoteMessage } from "../src/services/qwenpaw/types.ts"
 
 const stream = (bytes: Uint8Array, size = 1) =>
@@ -293,4 +294,15 @@ test("unconfirmed approval responses are not converted into success or retried",
     /not confirmed/
   )
   assert.equal(calls, 1)
+})
+test("agent labels prefer the custom name, then the channel name, then default", () => {
+  const agents = [{ id: "default", name: "Research Agent" }]
+  assert.equal(resolveAgentName("default", agents, " My Agent "), "My Agent")
+  assert.equal(resolveAgentName("default", agents), "Research Agent")
+  assert.equal(
+    resolveAgentName("default", [{ id: "default", name: "   " }]),
+    "default"
+  )
+  assert.equal(resolveAgentName("missing", agents), "default")
+  assert.equal(resolveAgentName(undefined, agents, ""), "default")
 })

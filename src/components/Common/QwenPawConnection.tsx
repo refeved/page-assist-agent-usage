@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react"
 import { Alert, Button, Input, Space } from "antd"
 import { useTranslation } from "react-i18next"
-import { loadConnection, saveConnection } from "@/services/qwenpaw/config"
+import {
+  loadAgentName,
+  loadConnection,
+  saveAgentName,
+  saveConnection
+} from "@/services/qwenpaw/config"
 import { QwenPawClient } from "@/services/qwenpaw/client"
 import { serviceUrl } from "@/services/qwenpaw/privacy"
 
@@ -26,15 +31,18 @@ export const QwenPawConnectionForm = ({
   const [base, setBase] = useState("")
   const [token, setToken] = useState("")
   const [consoleUrl, setConsoleUrl] = useState("")
+  const [agentName, setAgentName] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let live = true
-    loadConnection()
-      .then((saved) => {
-        if (live && saved) {
+    Promise.all([loadConnection(), loadAgentName()])
+      .then(([saved, savedAgentName]) => {
+        if (!live) return
+        setAgentName(savedAgentName)
+        if (saved) {
           setBase(saved.config.baseUrl)
           setToken(saved.token)
           setConsoleUrl(saved.config.consoleUrl || "")
@@ -55,6 +63,7 @@ export const QwenPawConnectionForm = ({
     try {
       if (save) {
         await saveConnection(base, token, consoleUrl)
+        await saveAgentName(agentName)
         setSuccess(t("saved"))
         onConfigured?.()
       } else {
@@ -108,6 +117,20 @@ export const QwenPawConnectionForm = ({
         value={consoleUrl}
         onChange={(e) => setConsoleUrl(e.target.value)}
       />
+      <label
+        htmlFor="qp-agent-name"
+        className="text-sm font-medium dark:text-gray-200">
+        {t("agentName")}
+      </label>
+      <Input
+        id="qp-agent-name"
+        value={agentName}
+        onChange={(e) => setAgentName(e.target.value)}
+        placeholder={t("agentNamePlaceholder")}
+      />
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        {t("agentNameHint")}
+      </p>
       <Space wrap>
         <Button
           loading={busy}

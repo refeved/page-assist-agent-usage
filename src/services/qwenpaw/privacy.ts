@@ -1,6 +1,9 @@
 export const CONFIG_KEY = "qwenpaw.connection"
 export const CREDENTIAL_KEY = "qwenpaw.credential"
 export const MODE_KEY = "qwenpaw.mode"
+// Cosmetic override kept apart from the connection so renaming never
+// re-partitions the credential-scoped caches in `saveConnection`.
+export const AGENT_NAME_KEY = "qwenpaw.agentName"
 export function filterRemoteStorage(data: Record<string, unknown>) {
   // Plasmo may encode values as JSON; discard the entire namespace, not just token fields.
   return Object.fromEntries(

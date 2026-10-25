@@ -1,6 +1,12 @@
 import { Storage } from "@plasmohq/storage"
 import type { Connection } from "./types"
-import { CONFIG_KEY, CREDENTIAL_KEY, MODE_KEY, serviceUrl } from "./privacy"
+import {
+  AGENT_NAME_KEY,
+  CONFIG_KEY,
+  CREDENTIAL_KEY,
+  MODE_KEY,
+  serviceUrl
+} from "./privacy"
 
 const storage = new Storage({ area: "local" })
 export async function restrictCredentialAccess() {
@@ -52,4 +58,13 @@ export async function saveConnection(
   await storage.set(CREDENTIAL_KEY, token.trim())
   await storage.set(CONFIG_KEY, config)
   return config
+}
+export async function loadAgentName() {
+  const saved = await storage.get<string>(AGENT_NAME_KEY)
+  return saved?.trim() || ""
+}
+export async function saveAgentName(name: string) {
+  const value = name.trim()
+  if (value) await storage.set(AGENT_NAME_KEY, value)
+  else await storage.remove(AGENT_NAME_KEY)
 }

@@ -27,6 +27,7 @@ import { useStorage } from "@plasmohq/storage/hook"
 import { ChatModelMenu } from "@/components/Common/ChatModelMenu"
 import { useTranslation } from "react-i18next"
 import { useQwenPawChat } from "@/hooks/useQwenPawChat"
+import { useQwenPawAgentName } from "@/hooks/useQwenPawAgentName"
 import { useSmartScroll } from "@/hooks/useSmartScroll"
 import useDynamicTextareaSize from "@/hooks/useDynamicTextareaSize"
 import {
@@ -50,6 +51,7 @@ import {
 import { RemoteSidepanelHeader } from "@/components/Sidepanel/Chat/header"
 import pawIcon from "@/assets/qwenpaw-paw.png"
 import { setMode } from "@/services/qwenpaw/config"
+import { resolveAgentName } from "@/services/qwenpaw/agent-name"
 import { capabilitiesOf } from "@/services/provider-capabilities"
 import {
   capture,
@@ -66,9 +68,15 @@ export default function QwenPawSidebar() {
   const { t: common } = useTranslation("common")
   const { t: playground } = useTranslation("playground")
   const [useCompactActions] = useStorage("optimizeQueueForSmallScreen", false)
-  const chat = useQwenPawChat()
+  const customAgentName = useQwenPawAgentName()
+  const chat = useQwenPawChat(customAgentName)
   const { sendWhenEnter, setSendWhenEnter } = useWebUI()
   const [agentId, setAgentId] = useState<string>()
+  const agentDisplayName = resolveAgentName(
+    chat.conversation?.agentId || agentId,
+    chat.session?.agents,
+    customAgentName
+  )
   const [question, setQuestion] = useState("")
   const [mode, setContextMode] = useState<"none" | "article" | "selection">(
     "none"
@@ -353,9 +361,7 @@ export default function QwenPawSidebar() {
                   message={message.content}
                   isBot={message.role === "assistant"}
                   name={
-                    message.role === "assistant"
-                      ? chat.conversation?.agentId || "QwenPaw"
-                      : "You"
+                    message.role === "assistant" ? agentDisplayName : "You"
                   }
                   modelImage={
                     message.role === "assistant" ? pawIcon : undefined
@@ -616,7 +622,7 @@ export default function QwenPawSidebar() {
                       </button>
                     </Tooltip>
                     <ChatModelMenu
-                      label={`${t("agent")}${agentId ? `: ${chat.session?.agents.find((a) => a.id === agentId)?.name || agentId}` : ""}${chat.conversation ? ` — ${t("agentBound")}` : ""}`}
+                      label={`${t("agent")}${agentId ? `: ${agentDisplayName}` : ""}${chat.conversation ? ` — ${t("agentBound")}` : ""}`}
                       iconClassName="size-4"
                       selectedKey={agentId}
                       disabled={
@@ -626,7 +632,11 @@ export default function QwenPawSidebar() {
                         key: a.id,
                         label: (
                           <span className="inline-flex w-52 items-center gap-2 truncate text-lg">
-                            {a.name}
+                            {resolveAgentName(
+                              a.id,
+                              chat.session?.agents,
+                              customAgentName
+                            )}
                           </span>
                         ),
                         title: a.description,
@@ -729,9 +739,22 @@ export default function QwenPawSidebar() {
                   setHistoryOpen(false)
                 }}
                 className={`rounded-lg border p-3 text-left hover:bg-gray-50 dark:hover:bg-[#303030] ${c.id === chat.conversation?.id ? "border-gray-500" : "border-gray-200 dark:border-gray-700"}`}>
-                <span className="block truncate">{c.title}</span>
+                <span className="block truncate">
+                  {c.title && c.title !== c.agentId
+                    ? c.title
+                    : resolveAgentName(
+                        c.agentId,
+                        chat.session?.agents,
+                        customAgentName
+                      )}
+                </span>
                 <span className="text-xs text-gray-500">
-                  {c.agentId} · {c.conversationId.slice(0, 8)}
+                  {resolveAgentName(
+                    c.agentId,
+                    chat.session?.agents,
+                    customAgentName
+                  )}{" "}
+                  · {c.conversationId.slice(0, 8)}
                 </span>
               </button>
             ))}
