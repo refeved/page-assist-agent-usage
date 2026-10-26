@@ -113,13 +113,15 @@ try {
     .click()
   await page.getByText("Basic channel:", { exact: false }).waitFor()
   await page.getByRole("button", { name: "Close", exact: true }).click()
+  // The section renders whenever the channel declares approvals support,
+  // even before any native approval exists.
   assert.equal(
     await page
       .getByText("Pending approvals (all authorized conversations)", {
         exact: true
       })
       .count(),
-    0
+    1
   )
   await page.getByRole("button", { name: /^Agent for new chat:/ }).click()
   await page.getByRole("menuitem", { name: "test-agent", exact: true }).click()
