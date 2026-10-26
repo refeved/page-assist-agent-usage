@@ -541,10 +541,20 @@ try {
     rolledBack: true,
     otherScope: 0
   })
+  // The approval lives behind the composer button now, not in the transcript.
+  await page.getByRole("button", { name: "Approvals", exact: true }).click()
+  if (process.env.APPROVAL_SCREENSHOT_PATH) {
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: process.env.APPROVAL_SCREENSHOT_PATH })
+  }
   await page.getByRole("button", { name: "Reject", exact: true }).click()
-  await page
-    .getByText("/synthetic-test.txt", { exact: true })
-    .waitFor({ state: "detached" })
+  // The popover keeps its DOM while closed, so watch the button instead of
+  // waiting for the approval text to be detached.
+  await page.waitForFunction(
+    () =>
+      document.querySelector('button[aria-label="Approvals"]')?.disabled ===
+      true
+  )
   assert.equal(decisions, 1)
   // Synthetic HTML is opened as the active tab; capture is triggered without activating the extension tab.
   const article = await context.newPage()

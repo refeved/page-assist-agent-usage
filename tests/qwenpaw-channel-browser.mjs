@@ -113,16 +113,14 @@ try {
     .click()
   await page.getByText("Basic channel:", { exact: false }).waitFor()
   await page.getByRole("button", { name: "Close", exact: true }).click()
-  // The section renders whenever the channel declares approvals support,
-  // even before any native approval exists.
-  assert.equal(
-    await page
-      .getByText("Pending approvals (all authorized conversations)", {
-        exact: true
-      })
-      .count(),
-    1
-  )
+  // The composer shows an approval button whenever the channel declares
+  // approvals support; it stays disabled while nothing is pending.
+  const approvalButton = page.getByRole("button", {
+    name: "Approvals",
+    exact: true
+  })
+  assert.equal(await approvalButton.count(), 1)
+  assert.equal(await approvalButton.isDisabled(), true)
   await page.getByRole("button", { name: /^Agent for new chat:/ }).click()
   await page.getByRole("menuitem", { name: "test-agent", exact: true }).click()
   const question = page.getByPlaceholder("Ask the selected Agent…")
