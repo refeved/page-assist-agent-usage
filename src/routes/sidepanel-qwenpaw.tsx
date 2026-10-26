@@ -21,7 +21,8 @@ import {
   ImageIcon,
   PaperclipIcon,
   FileTextIcon,
-  MicIcon
+  MicIcon,
+  ShieldCheckIcon
 } from "lucide-react"
 import { useStorage } from "@plasmohq/storage/hook"
 import { ChatModelMenu } from "@/components/Common/ChatModelMenu"
@@ -90,6 +91,7 @@ export default function QwenPawSidebar() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [contextOpen, setContextOpen] = useState(false)
+  const [approvalOpen, setApprovalOpen] = useState(false)
   const [typing, setTyping] = useState(false)
   const [now, setNow] = useState(Date.now())
   const captureGeneration = useRef(0)
@@ -283,6 +285,110 @@ export default function QwenPawSidebar() {
           }
         ])
   ]
+  // Approvals belong beside the composer actions: the transcript stays a
+  // transcript, and a pending approval only lights up this button.
+  const pendingApprovals = chat.approvals
+  const approvalPanel = (
+    <div className="flex max-h-80 w-72 max-w-[calc(100vw-3rem)] flex-col gap-2 overflow-y-auto">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        {t("approvalNotice")}
+      </p>
+      {chat.approvalError && (
+        <Alert type="warning" message={chat.approvalError} />
+      )}
+      {Object.keys(chat.decisions)
+        .filter((id) => !pendingApprovals.some((a) => a.id === id))
+        .map((id) => (
+          <Alert
+            key={id}
+            type="warning"
+            message={t("decisionUnknown")}
+            description={id}
+          />
+        ))}
+      {pendingApprovals.map((a) => {
+        const valid =
+          !chat.decidingId &&
+          chat.approvalsFresh &&
+          a.actionable &&
+          !!a.tool.trim() &&
+          !!a.target.trim() &&
+          !!a.risk.trim() &&
+          Date.parse(a.expiresAt) > now
+        const previous = chat.decisions[a.id]
+        return (
+          <article
+            key={a.id}
+            className="flex flex-col gap-2 rounded border border-gray-200 p-2 text-xs dark:border-gray-700">
+            <strong className="text-sm">
+              {a.tool} · {a.agentId}
+            </strong>
+            {chat.decidingId === a.id && (
+              <p role="status">{t("submitting")}</p>
+            )}
+            <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-1.5 dark:bg-[#303030]">
+              {a.target}
+            </pre>
+            <p className="text-gray-600 dark:text-gray-300">{a.risk}</p>
+            <p className="text-gray-400">
+              {t("approvalExpiresAt", {
+                time: new Date(a.expiresAt).toLocaleTimeString()
+              })}
+            </p>
+            {!valid && <p className="text-amber-600">{t("expired")}</p>}
+            {previous ? (
+              <>
+                <Alert type="warning" message={t("decisionUnknown")} />
+                <Button
+                  size="small"
+                  disabled={!valid}
+                  onClick={() =>
+                    void chat.decide(a, previous.approved, previous.scope)
+                  }>
+                  {t("retryDecision")}
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {a.scopes
+                  .filter((s) => s.label.trim() && s.description.trim())
+                  .map((scope) => (
+                    <div key={scope.id} className="flex flex-col gap-1">
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {scope.description}
+                      </p>
+                      <Button
+                        size="small"
+                        type="primary"
+                        disabled={!valid}
+                        onClick={() => void chat.decide(a, true, scope.id)}>
+                        {t("approve")} — {scope.label}
+                      </Button>
+                    </div>
+                  ))}
+                <Button
+                  size="small"
+                  danger
+                  disabled={!valid}
+                  onClick={() => void chat.decide(a, false)}>
+                  {t("reject")}
+                </Button>
+              </div>
+            )}
+          </article>
+        )
+      })}
+      {chat.session?.config.consoleUrl && (
+        <a
+          className="text-xs underline"
+          href={chat.session.config.consoleUrl}
+          target="_blank"
+          rel="noreferrer noopener">
+          {t("consoleFallback")}
+        </a>
+      )}
+    </div>
+  )
   const composerOptions = (
     <div className="w-60 space-y-2">
       <div className="flex items-center justify-between rounded-lg border border-gray-200 px-2 py-1.5 dark:border-[#404040]">
@@ -387,113 +493,6 @@ export default function QwenPawSidebar() {
                   ? t(chat.activeRequest.state)
                   : t("loading")}
               </p>
-            )}
-            {chat.session?.caps.approvals && (
-              <section className="flex w-full flex-col gap-2 border-t pt-3 dark:border-gray-700">
-                <h2>{t("approvals")}</h2>
-                <p>{t("approvalNotice")}</p>
-                {chat.approvalError && (
-                  <Alert type="warning" message={chat.approvalError} />
-                )}
-                {Object.keys(chat.decisions)
-                  .filter((id) => !chat.approvals.some((a) => a.id === id))
-                  .map((id) => (
-                    <Alert
-                      key={id}
-                      type="warning"
-                      message={t("decisionUnknown")}
-                      description={id}
-                    />
-                  ))}
-                {chat.approvals.map((a) => {
-                  const valid =
-                    !chat.decidingId &&
-                    chat.approvalsFresh &&
-                    a.actionable &&
-                    !!a.tool.trim() &&
-                    !!a.target.trim() &&
-                    !!a.risk.trim() &&
-                    Date.parse(a.expiresAt) > now
-                  const previous = chat.decisions[a.id]
-                  return (
-                    <article
-                      key={a.id}
-                      className="flex flex-col gap-2 rounded border p-2 dark:border-gray-700">
-                      <strong>
-                        {a.tool} · {a.agentId}
-                      </strong>
-                      {chat.decidingId === a.id && (
-                        <p role="status">{t("submitting")}</p>
-                      )}
-                      <p className="break-all">
-                        {a.conversationId} / {a.requestId}
-                      </p>
-                      <pre className="whitespace-pre-wrap break-words">
-                        {a.target}
-                      </pre>
-                      <p>{a.risk}</p>
-                      <p>{a.expiresAt}</p>
-                      {!valid && <p>{t("expired")}</p>}
-                      {previous ? (
-                        <>
-                          <Alert
-                            type="warning"
-                            message={t("decisionUnknown")}
-                          />
-                          <Button
-                            disabled={!valid}
-                            onClick={() =>
-                              void chat.decide(
-                                a,
-                                previous.approved,
-                                previous.scope
-                              )
-                            }>
-                            {t("retryDecision")}
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          {a.scopes
-                            .filter(
-                              (s) => s.label.trim() && s.description.trim()
-                            )
-                            .map((scope) => (
-                              <div key={scope.id}>
-                                <p>{scope.description}</p>
-                                <Button
-                                  disabled={!valid}
-                                  onClick={() =>
-                                    Modal.confirm({
-                                      title: scope.label,
-                                      content: `${scope.description}\n${t("approvalNotice")}`,
-                                      onOk: () => chat.decide(a, true, scope.id)
-                                    })
-                                  }>
-                                  {t("approve")} — {scope.label}
-                                </Button>
-                              </div>
-                            ))}
-                          <Button
-                            danger
-                            disabled={!valid}
-                            onClick={() => void chat.decide(a, false)}>
-                            {t("reject")}
-                          </Button>
-                        </>
-                      )}
-                    </article>
-                  )
-                })}
-                {chat.session.config.consoleUrl && (
-                  <a
-                    href={chat.session.config.consoleUrl}
-                    target="_blank"
-                    rel="noreferrer noopener">
-                    {t("consoleFallback")}
-                  </a>
-                )}
-              </section>
             )}
           </div>
         </div>
@@ -610,6 +609,40 @@ export default function QwenPawSidebar() {
                         </UnavailableComposerAction>
                       ))}
                     </div>
+                    {chat.session?.caps.approvals && (
+                      <Popover
+                        trigger="click"
+                        placement="topLeft"
+                        open={approvalOpen && pendingApprovals.length > 0}
+                        onOpenChange={setApprovalOpen}
+                        content={approvalPanel}>
+                        <button
+                          type="button"
+                          aria-label={t("approvals")}
+                          aria-haspopup="dialog"
+                          aria-expanded={
+                            approvalOpen && pendingApprovals.length > 0
+                          }
+                          disabled={pendingApprovals.length === 0}
+                          title={
+                            chat.approvalError
+                              ? chat.approvalError
+                              : pendingApprovals.length
+                                ? t("approvalsPending", {
+                                    count: pendingApprovals.length
+                                  })
+                                : t("noApprovals")
+                          }
+                          className={`relative inline-flex items-center justify-center rounded-md p-1 transition-colors ${pendingApprovals.length ? "bg-amber-100 text-amber-700 ring-1 ring-amber-400 dark:bg-amber-500/20 dark:text-amber-300" : "text-gray-400 dark:text-gray-500"}`}>
+                          <ShieldCheckIcon className="size-4" />
+                          {pendingApprovals.length > 0 && (
+                            <span className="absolute -right-1 -top-1 inline-flex size-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-semibold leading-none text-white">
+                              {pendingApprovals.length}
+                            </span>
+                          )}
+                        </button>
+                      </Popover>
+                    )}
                     <Tooltip title={common("chatWithCurrentPage")}>
                       <button
                         type="button"
