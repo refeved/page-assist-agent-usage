@@ -19,8 +19,9 @@ OpenAI API 不能替代此地址。安装及配置参见插件 README。
 首版支持文字、显式网页分享、独立聊天和追问；显示完整消息，不提供逐 token
 增量、全局 Agent 发现、断线/重启恢复或审批事件推送。频道声明
 `recovery=false`、`approvals=true`、`approvalEvents=false`；前端展示限制提示，
-不自动恢复断线，收到终态事件才解锁下一次发送。待审批通过侧栏列表展示，
-前端每 5 秒轮询对账，不依赖推送。
+不自动恢复断线，收到终态事件才解锁下一次发送。待审批不再写入对话消息，
+而是由输入框工具栏的审批按钮提示：无待审批时按钮置灰，有待审批时高亮并显示
+数量，点击弹出气泡完成批准或拒绝。前端每 5 秒轮询对账，不依赖推送。
 审批复用原生 ApprovalService 的记录与决定入口，不自动批准；归属无法确认
 或当前版本不支持的审批仍在原生 Console 处理。
 
@@ -99,6 +100,8 @@ OCR 选项同样禁用并说明原因。本轮不新增附件传输接口，也�
 不支持项在输入工具栏以禁用状态展示并给出原因（小屏收进“更多”菜单），空态与设置页
 不再渲染对应入口，避免用户误以为可用。审批能力由频道声明的 `approvals` 决定；
 基础频道声明 `approvals=true`，侧栏直接处理原生待审批，无需跳转 Console。
+审批入口与上传图片、插入网页内容等按钮同排：无待审批时为灰色禁用态，有待审批时
+变色并显示数量角标，点击后以气泡展示工具、目标、风险与授权范围。
 
 ## Configuration and privacy
 
@@ -301,9 +304,9 @@ independent of which conversation is visible:
 ```
 
 Only service DTOs create cards. Unknown/missing ownership, insufficient details,
-expiry or failed reconciliation disables actions. Approval modals are checked
-again against fresh native details at submission time. Scope IDs and explanation
-are service-defined, never inferred from model text.
+expiry or failed reconciliation disables actions. Actions are re-checked against
+fresh native details at submission time; the panel never infers scope from model
+text. Scope IDs and explanation are service-defined.
 
 `POST /approvals/:id/decision`:
 `{ "decisionId": "uuid", "approved": true, "scope": "exact" }`.
@@ -315,7 +318,9 @@ payload. Disappearing from the pending list is not proof of approval or rejectio
 unconfirmed saved decisions remain visible and can require Console reconciliation.
 Approving never resubmits the question or executes a tool locally.
 
-The independent approval list polls every five seconds while the page is open.
+The approval list polls every five seconds while the page is open and feeds the
+composer button: disabled while nothing is pending, highlighted with a count
+when something is. Opening the popover shows the native details.
 If `approvalEvents: true`, `GET /events` additionally emits JSON notifications
 `{ "type": "approvals.changed" }` or `{ "type": "events.gap" }`; both invalidate
 the old buttons and query the authoritative list. Notification failures disable

@@ -140,10 +140,11 @@ No Ollama configuration is required for the remote mode.
 installable **Page Assist channel plugin** in the standalone companion repository
 `qwenpaw-channel-page-assist`. It runs in the QwenPaw process on a dedicated port
 (default `127.0.0.1:8766`), bound to one Agent. It supports text, explicit webpage
-sharing and follow-up chat with complete replies. Native approvals are shown and
-resolved in the side panel; disconnect/restart recovery and approval event push
-are deferred. A normal Console or OpenAI-compatible URL is not a channel
-endpoint. Failures are explicit, with no local fallback or simulated answers.
+sharing and follow-up chat with complete replies. Native approvals are surfaced on
+a composer button beside the attachment actions and resolved in the side panel;
+disconnect/restart recovery and approval event push are deferred. A normal Console
+or OpenAI-compatible URL is not a channel endpoint. Failures are explicit, with no
+local fallback or simulated answers.
 
 Preview milestone: tag `remote-agent-preview-1`. Feature development continues on
 `feat/qwenpaw-remote-channel`; `main` only mirrors upstream.
