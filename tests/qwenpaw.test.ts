@@ -8,6 +8,12 @@ import {
 import { applyMessageEvent } from "../src/services/qwenpaw/reducer.ts"
 import { dataUrlToFile } from "../src/libs/qwenpaw/image-payload.ts"
 import {
+  COMPRESS_ABOVE,
+  compressImageFile,
+  compressScreenshotBlob,
+  fitEdges
+} from "../src/libs/qwenpaw/compress-image.ts"
+import {
   contextHash,
   filterRemoteStorage,
   serviceUrl,
@@ -399,4 +405,62 @@ test("agent labels prefer the custom name, then the channel name, then default",
   )
   assert.equal(resolveAgentName("missing", agents), "default")
   assert.equal(resolveAgentName(undefined, agents, ""), "default")
+})
+
+test("oversized screenshots are re-encoded before they can hit the cap", () => {
+  assert.deepEqual(fitEdges(4000, 3000, 2560), { width: 2560, height: 1920 })
+  assert.deepEqual(fitEdges(1000, 800, 2560), { width: 1000, height: 800 })
+  assert.ok(COMPRESS_ABOVE < 5 * 1024 * 1024)
+})
+
+test("compressScreenshotBlob re-encodes only what needs it", async () => {
+  const small = new Blob([new Uint8Array(1024)], { type: "image/jpeg" })
+  let decoded = 0
+  const codec = {
+    decode: async () => {
+      decoded++
+      return { width: 4000, height: 3000 }
+    },
+    encode: async (_b: unknown, width: number, height: number) => {
+      assert.deepEqual({ width, height }, { width: 2560, height: 1920 })
+      return small
+    }
+  }
+  const big = new File([new Uint8Array(6 * 1024 * 1024)], "shot.png", {
+    type: "image/png"
+  })
+  assert.equal(await compressScreenshotBlob(big, codec), small)
+  assert.equal(decoded, 1)
+
+  // Small inputs pass through untouched, and a re-encode that would only
+  // grow the payload keeps the original bytes instead.
+  const tiny = new File([new Uint8Array(10)], "x.png", { type: "image/png" })
+  const never = {
+    decode: async () => {
+      throw new Error("must not decode")
+    },
+    encode: async () => small
+  }
+  assert.equal(await compressScreenshotBlob(tiny, never), tiny)
+
+  const lossy = new File([new Uint8Array(4 * 1024 * 1024)], "flat.png", {
+    type: "image/png"
+  })
+  const grown = new Blob([new Uint8Array(5 * 1024 * 1024)], {
+    type: "image/jpeg"
+  })
+  const kept = await compressScreenshotBlob(lossy, {
+    decode: async () => ({ width: 1000, height: 700 }),
+    encode: async () => grown
+  })
+  assert.equal(kept, lossy)
+})
+
+test("compressImageFile only touches large images", async () => {
+  const log = new File([new Uint8Array(COMPRESS_ABOVE + 1)], "app.log", {
+    type: "application/octet-stream"
+  })
+  assert.equal(await compressImageFile(log), log)
+  const tiny = new File([new Uint8Array(10)], "x.png", { type: "image/png" })
+  assert.equal(await compressImageFile(tiny), tiny)
 })

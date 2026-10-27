@@ -66,6 +66,7 @@ import { getVariable } from "@/utils/select-variable"
 import { toBase64 } from "@/libs/to-base64"
 import { getScreenshotFromCurrentTab } from "@/libs/get-screenshot"
 import { dataUrlToFile } from "@/libs/qwenpaw/image-payload"
+import { compressImageFile } from "@/libs/qwenpaw/compress-image"
 import {
   capture,
   truncateCapture,
@@ -274,13 +275,16 @@ export default function QwenPawSidebar() {
     }
     setError("")
     let slots = session.caps.maxAttachments - pendingAttachments.length
-    for (const file of files) {
+    for (const picked of files) {
       if (slots <= 0) {
         setError(
           t("attachmentLimit", { max: session.caps.maxAttachments })
         )
         break
       }
+      // Large screenshots become JPEGs first: full-res PNG uploads would fail
+      // the channel cap after base64 inflation on most displays.
+      const file = await compressImageFile(picked)
       slots--
       const maxBytes = session.caps.maxAttachmentBytes
       if (!file.size || file.size > maxBytes) {
