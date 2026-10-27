@@ -75,7 +75,7 @@ const REMOTE_CAPABILITIES: ProviderCapabilities = {
   vision: false,
   ocr: false,
   tts: true,
-  speechToText: false,
+  speechToText: true,
   fileUpload: false,
   imageUpload: false
 }

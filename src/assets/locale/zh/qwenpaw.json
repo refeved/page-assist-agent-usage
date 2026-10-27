@@ -23,7 +23,6 @@
   "unavailableFiles": "当前频道尚未接通向 Agent 上传文件。",
   "unavailableScreenshot": "当前频道尚未接通网页截图或 OCR 图片传输。",
   "unavailableLocalTools": "远程模式未接通浏览器本地模型工具；工具由 QwenPaw Agent 管理。",
-  "unavailableSpeech": "远程模式暂未接通语音输入。",
   "agentBound": "请新建聊天后选择其他 Agent",
   "nativeWelcome": "与 QwenPaw Agent 对话。点击输入框旁的网页文档图标，分享当前网页或选中文字。",
   "connectionDetails": "连接与聊天详情",

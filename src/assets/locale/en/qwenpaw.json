@@ -23,7 +23,6 @@
   "unavailableFiles": "This channel does not yet upload files to the Agent.",
   "unavailableScreenshot": "This channel does not yet transmit webpage screenshots or OCR images.",
   "unavailableLocalTools": "Local browser model tools are not connected in Remote mode. Tools are managed by the QwenPaw Agent.",
-  "unavailableSpeech": "Speech input is not connected in Remote mode.",
   "agentBound": "Start a new chat to select a different Agent",
   "nativeWelcome": "Chat with your QwenPaw Agent. Use the page icon beside the input to share the current page or selected text.",
   "connectionDetails": "Connection and chat details",

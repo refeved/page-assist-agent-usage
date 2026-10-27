@@ -37,6 +37,7 @@ import {
   useSidebarShortcuts
 } from "@/hooks/keyboard/useKeyboardShortcuts"
 import { useWebUI } from "@/store/webui"
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition"
 import { handleChatInputKeyDown } from "@/utils/key-down"
 import { PlaygroundMessage } from "@/components/Common/Playground/Message"
 import { RemoteMarkdownContext } from "@/components/Common/Markdown"
@@ -72,6 +73,15 @@ export default function QwenPawSidebar() {
   const customAgentName = useQwenPawAgentName()
   const chat = useQwenPawChat(customAgentName)
   const { sendWhenEnter, setSendWhenEnter, ttsEnabled } = useWebUI()
+  const [speechToTextLanguage] = useStorage("speechToTextLanguage", "en-US")
+  const {
+    transcript,
+    isListening,
+    resetTranscript,
+    start: startListening,
+    stop: stopSpeechRecognition,
+    supported: browserSupportsSpeechRecognition
+  } = useSpeechRecognition()
   const [agentId, setAgentId] = useState<string>()
   const agentDisplayName = resolveAgentName(
     chat.conversation?.agentId || agentId,
@@ -113,6 +123,13 @@ export default function QwenPawSidebar() {
     useSmartScroll(chat.messages, processing, 100, chat.conversation?.id)
   useDynamicTextareaSize(textarea, question, 200)
   useFocusShortcuts(textarea, true)
+  // Dictation stays local: the transcript simply fills the textarea, and the
+  // channel still ships plain text, so the size caps keep applying.
+  useEffect(() => {
+    if (!isListening) return
+    const limit = chat.session?.caps.maxTextChars
+    setQuestion(limit ? transcript.slice(0, limit) : transcript)
+  }, [transcript, isListening, chat.session])
   const newChat = () => {
     if (agentId && !sending && !chat.busy) {
       setQuestion("")
@@ -208,6 +225,7 @@ export default function QwenPawSidebar() {
   }
   const send = async () => {
     if (disabled || !question.trim() || !agentId) return
+    if (isListening) stopSpeechRecognition()
     setSending(true)
     setError("")
     try {
@@ -248,15 +266,6 @@ export default function QwenPawSidebar() {
   // Only capabilities the remote channel lacks are advertised in the composer.
   const capabilities = capabilitiesOf("remote")
   const unavailableActions = [
-    ...(capabilities.speechToText
-      ? []
-      : [
-          {
-            label: playground("tooltip.speechToText"),
-            reason: t("unavailableSpeech"),
-            icon: <MicIcon className="size-4" />
-          }
-        ]),
     ...(capabilities.vision
       ? []
       : [
@@ -598,6 +607,32 @@ export default function QwenPawSidebar() {
                     </Popover>
                   )}
                   <SidepanelComposerActions compact={useCompactActions}>
+                    {browserSupportsSpeechRecognition && (
+                      <Tooltip title={playground("tooltip.speechToText")}>
+                        <button
+                          type="button"
+                          aria-label={playground("tooltip.speechToText")}
+                          aria-pressed={isListening}
+                          disabled={sending || reading}
+                          onClick={() => {
+                            if (isListening) {
+                              stopSpeechRecognition()
+                            } else {
+                              resetTranscript()
+                              startListening({
+                                continuous: true,
+                                lang: speechToTextLanguage
+                              })
+                            }
+                          }}
+                          className={`relative inline-flex items-center justify-center ${isListening ? "text-red-500" : "text-gray-600 dark:text-gray-300"}`}>
+                          <MicIcon className="size-4" />
+                          {isListening && (
+                            <span className="absolute inline-flex size-2 animate-ping rounded-full bg-red-400 opacity-75" />
+                          )}
+                        </button>
+                      </Tooltip>
+                    )}
                     <div
                       className={`items-center gap-3 ${useCompactActions ? "hidden md:flex" : "flex"}`}>
                       {unavailableActions.map((action) => (
