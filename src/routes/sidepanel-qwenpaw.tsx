@@ -4,6 +4,7 @@ import {
   Button,
   Checkbox,
   Drawer,
+  Dropdown,
   Modal,
   Popover,
   Select,
@@ -22,9 +23,12 @@ import {
   PaperclipIcon,
   FileTextIcon,
   MicIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  BookIcon,
+  ZapIcon
 } from "lucide-react"
 import { useStorage } from "@plasmohq/storage/hook"
+import { useQuery } from "@tanstack/react-query"
 import { ChatModelMenu } from "@/components/Common/ChatModelMenu"
 import { useTranslation } from "react-i18next"
 import { useQwenPawChat } from "@/hooks/useQwenPawChat"
@@ -55,6 +59,8 @@ import pawIcon from "@/assets/qwenpaw-paw.png"
 import { setMode } from "@/services/qwenpaw/config"
 import { resolveAgentName } from "@/services/qwenpaw/agent-name"
 import { capabilitiesOf } from "@/services/provider-capabilities"
+import { getAllPrompts } from "@/db/dexie/helpers"
+import { getVariable } from "@/utils/select-variable"
 import {
   capture,
   truncateCapture,
@@ -69,6 +75,7 @@ export default function QwenPawSidebar() {
   const { t } = useTranslation("qwenpaw")
   const { t: common } = useTranslation("common")
   const { t: playground } = useTranslation("playground")
+  const { t: option } = useTranslation("option")
   const [useCompactActions] = useStorage("optimizeQueueForSmallScreen", false)
   const customAgentName = useQwenPawAgentName()
   const chat = useQwenPawChat(customAgentName)
@@ -294,6 +301,23 @@ export default function QwenPawSidebar() {
           }
         ])
   ]
+  // Quick prompts are local templates that only fill the textarea; system
+  // prompts stay unlisted because the remote Agent owns its system prompt.
+  const { data: prompts } = useQuery({
+    queryKey: ["getAllPromptsForSelect"],
+    queryFn: getAllPrompts
+  })
+  const quickPrompts = prompts?.filter((prompt) => !prompt.is_system) ?? []
+  const insertQuickPrompt = (content: string) => {
+    setQuestion(content)
+    const word = getVariable(content)
+    if (word) {
+      textarea.current?.focus()
+      setTimeout(() => {
+        textarea.current?.setSelectionRange(word.start, word.end)
+      }, 100)
+    }
+  }
   // Approvals belong beside the composer actions: the transcript stays a
   // transcript, and a pending approval only lights up this button.
   const pendingApprovals = chat.approvals
@@ -632,6 +656,33 @@ export default function QwenPawSidebar() {
                           )}
                         </button>
                       </Tooltip>
+                    )}
+                    {quickPrompts.length > 0 && (
+                      <Dropdown
+                        trigger={["click"]}
+                        placement="topLeft"
+                        menu={{
+                          items: quickPrompts.map((prompt) => ({
+                            key: prompt.id,
+                            label: (
+                              <span className="inline-flex w-52 items-center gap-2 truncate text-sm">
+                                <ZapIcon className="size-4 shrink-0" />
+                                {prompt.title}
+                              </span>
+                            ),
+                            onClick: () => insertQuickPrompt(prompt.content)
+                          }))
+                        }}>
+                        <Tooltip title={option("selectAPrompt")}>
+                          <button
+                            type="button"
+                            aria-label={option("selectAPrompt")}
+                            disabled={disabled}
+                            className="inline-flex items-center justify-center text-gray-600 dark:text-gray-300 disabled:opacity-40">
+                            <BookIcon className="size-4" />
+                          </button>
+                        </Tooltip>
+                      </Dropdown>
                     )}
                     <div
                       className={`items-center gap-3 ${useCompactActions ? "hidden md:flex" : "flex"}`}>

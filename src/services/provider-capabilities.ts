@@ -70,7 +70,7 @@ const REMOTE_CAPABILITIES: ProviderCapabilities = {
   pageAction: false,
   webMcp: false,
   modelSettings: false,
-  prompts: false,
+  prompts: true,
   tempChat: false,
   vision: false,
   ocr: false,
