@@ -59,7 +59,8 @@ const LOCAL_CAPABILITIES: ProviderCapabilities = {
  * against any provider.
  * Attachments are different: the browser can upload them, but only a server
  * that advertises the attachment capability can receive them, so the composer
- * upgrades these two flags from the live capabilities and they stay off until
+ * upgrades the upload flags — and vision, whose screenshot rides the same
+ * attachment channel — from the live capabilities, and they stay off until
  * a connection proves support.
  */
 const REMOTE_CAPABILITIES: ProviderCapabilities = {
