@@ -71,7 +71,7 @@ export default function QwenPawSidebar() {
   const [useCompactActions] = useStorage("optimizeQueueForSmallScreen", false)
   const customAgentName = useQwenPawAgentName()
   const chat = useQwenPawChat(customAgentName)
-  const { sendWhenEnter, setSendWhenEnter } = useWebUI()
+  const { sendWhenEnter, setSendWhenEnter, ttsEnabled } = useWebUI()
   const [agentId, setAgentId] = useState<string>()
   const agentDisplayName = resolveAgentName(
     chat.conversation?.agentId || agentId,
@@ -480,7 +480,7 @@ export default function QwenPawSidebar() {
                   disableQuoteReply
                   isProcessing={false}
                   isStreaming={processing && index === chat.messages.length - 1}
-                  isTTSEnabled={false}
+                  isTTSEnabled={ttsEnabled}
                 />
               </article>
             ))}
