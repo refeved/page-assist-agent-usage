@@ -6,6 +6,7 @@ import {
   RemoteHTTPError
 } from "../src/services/qwenpaw/client.ts"
 import { applyMessageEvent } from "../src/services/qwenpaw/reducer.ts"
+import { dataUrlToFile } from "../src/libs/qwenpaw/image-payload.ts"
 import {
   contextHash,
   filterRemoteStorage,
@@ -225,6 +226,22 @@ test("client authenticates fixed paths, rejects redirects and sends no history",
   })
   assert.equal(calls, 1)
 })
+test("screenshot data URLs rebuild as ordinary PNG files", () => {
+  const png = Buffer.from("\x89PNG\r\n\x1a\n pixel-payload", "binary")
+  const dataUrl = `data:image/png;base64,${png.toString("base64")}`
+  const file = dataUrlToFile(dataUrl, "screenshot-1.png")
+  assert.equal(file.name, "screenshot-1.png")
+  assert.equal(file.type, "image/png")
+  assert.equal(file.size, png.length)
+
+  // A bare base64 body (no data: prefix) still decodes with a sane default.
+  const bare = dataUrlToFile(png.toString("base64"), "shot.png")
+  assert.equal(bare.type, "image/png")
+  assert.equal(bare.size, png.length)
+
+  assert.throws(() => dataUrlToFile("data:image/png;base64,", "x.png"))
+})
+
 test("attachment uploads post base64 once and fail closed", async () => {
   let calls = 0
   const fetcher: typeof fetch = async (url, init) => {

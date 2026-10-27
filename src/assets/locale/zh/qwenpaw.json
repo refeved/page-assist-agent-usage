@@ -26,7 +26,7 @@
   "attachmentUploading": "请等待附件上传完成。",
   "attachmentFailed": "请先移除上传失败的附件再发送。",
   "removeAttachment": "移除附件",
-  "unavailableScreenshot": "当前频道尚未接通网页截图或 OCR 图片传输。",
+  "unavailableScreenshot": "截图将作为图片附件发送，需要服务器安装更新版 Page Assist 频道插件。",
   "unavailableLocalTools": "远程模式未接通浏览器本地模型工具；工具由 QwenPaw Agent 管理。",
   "agentBound": "请新建聊天后选择其他 Agent",
   "nativeWelcome": "与 QwenPaw Agent 对话。点击输入框旁的网页文档图标，分享当前网页或选中文字。",

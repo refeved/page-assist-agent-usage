@@ -26,6 +26,7 @@ import {
   ShieldCheckIcon,
   BookIcon,
   ZapIcon,
+  EyeIcon,
   X
 } from "lucide-react"
 import { useStorage } from "@plasmohq/storage/hook"
@@ -63,6 +64,8 @@ import { capabilitiesOf } from "@/services/provider-capabilities"
 import { getAllPrompts } from "@/db/dexie/helpers"
 import { getVariable } from "@/utils/select-variable"
 import { toBase64 } from "@/libs/to-base64"
+import { getScreenshotFromCurrentTab } from "@/libs/get-screenshot"
+import { dataUrlToFile } from "@/libs/qwenpaw/image-payload"
 import {
   capture,
   truncateCapture,
@@ -113,6 +116,7 @@ export default function QwenPawSidebar() {
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
   >([])
+  const [shooting, setShooting] = useState(false)
   const imageInput = useRef<HTMLInputElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [mode, setContextMode] = useState<"none" | "article" | "selection">(
@@ -315,6 +319,25 @@ export default function QwenPawSidebar() {
       }
     }
   }
+  // A screenshot is just another image attachment: capture, rebuild as a
+  // File, and the staging path enforces the same limits as picked files.
+  const shoot = async () => {
+    if (shooting) return
+    setShooting(true)
+    setError("")
+    try {
+      const result = await getScreenshotFromCurrentTab()
+      if (!result.success || !result.screenshot)
+        throw new Error(result.error || "Screenshot capture failed")
+      await addFiles([
+        dataUrlToFile(result.screenshot, `screenshot-${Date.now()}.png`)
+      ])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setShooting(false)
+    }
+  }
   const send = async () => {
     if (disabled || !agentId) return
     if (pendingAttachments.some((row) => row.state === "uploading")) {
@@ -375,11 +398,13 @@ export default function QwenPawSidebar() {
   // Only capabilities the remote channel lacks are advertised in the composer.
   // Uploads depend on the connected server: its advertised attachment limits
   // decide whether the image and paperclip buttons act or stay explained.
+  // Screenshots ride the same attachment channel, so vision follows it too.
   const attachmentsSupported =
     chat.session?.caps.attachments === true &&
     chat.session.caps.maxAttachments > 0
   const capabilities = {
     ...capabilitiesOf("remote"),
+    vision: attachmentsSupported,
     imageUpload: attachmentsSupported,
     fileUpload: attachmentsSupported
   }
@@ -777,6 +802,20 @@ export default function QwenPawSidebar() {
                     {attachmentsSupported && (
                       <div
                         className={`items-center gap-3 ${useCompactActions ? "hidden md:flex" : "flex"}`}>
+                        <Tooltip title={playground("tooltip.vision")}>
+                          <button
+                            type="button"
+                            aria-label={playground("tooltip.vision")}
+                            disabled={disabled || shooting}
+                            onClick={() => void shoot()}
+                            className="inline-flex items-center justify-center text-gray-600 dark:text-gray-300 disabled:opacity-40">
+                            {shooting ? (
+                              <Spin size="small" />
+                            ) : (
+                              <EyeIcon className="size-4" />
+                            )}
+                          </button>
+                        </Tooltip>
                         <Tooltip title={playground("tooltip.uploadImage")}>
                           <button
                             type="button"
