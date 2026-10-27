@@ -25,7 +25,8 @@ import {
   MicIcon,
   ShieldCheckIcon,
   BookIcon,
-  ZapIcon
+  ZapIcon,
+  X
 } from "lucide-react"
 import { useStorage } from "@plasmohq/storage/hook"
 import { useQuery } from "@tanstack/react-query"
@@ -61,15 +62,28 @@ import { resolveAgentName } from "@/services/qwenpaw/agent-name"
 import { capabilitiesOf } from "@/services/provider-capabilities"
 import { getAllPrompts } from "@/db/dexie/helpers"
 import { getVariable } from "@/utils/select-variable"
+import { toBase64 } from "@/libs/to-base64"
 import {
   capture,
   truncateCapture,
   validateSnapshot
 } from "@/libs/qwenpaw/page-context"
 import type { PageSnapshot } from "@/libs/qwenpaw/page-context"
-import type { PageContext } from "@/services/qwenpaw/types"
+import type {
+  PageContext,
+  UploadedAttachment
+} from "@/services/qwenpaw/types"
 
 const noEdit = () => {}
+
+// Local staging row for one picked file on its way to the channel server.
+interface PendingAttachment {
+  key: string
+  name: string
+  preview?: string
+  state: "uploading" | "ready" | "failed"
+  uploaded?: UploadedAttachment
+}
 
 export default function QwenPawSidebar() {
   const { t } = useTranslation("qwenpaw")
@@ -96,6 +110,11 @@ export default function QwenPawSidebar() {
     customAgentName
   )
   const [question, setQuestion] = useState("")
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([])
+  const imageInput = useRef<HTMLInputElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const [mode, setContextMode] = useState<"none" | "article" | "selection">(
     "none"
   )
@@ -144,6 +163,8 @@ export default function QwenPawSidebar() {
       setContextMode("none")
       setSnapshot(undefined)
       setConfirmed(false)
+      clearAttachments(pendingAttachments)
+      setPendingAttachments([])
       chat.select(undefined)
     }
   }
@@ -230,8 +251,82 @@ export default function QwenPawSidebar() {
       setReading(false)
     }
   }
+  // Uploads are staged immediately after picking: the composer only ever
+  // sends attachment ids the server already confirmed it stored.
+  const clearAttachments = (rows: PendingAttachment[]) =>
+    rows.forEach((row) => row.preview && URL.revokeObjectURL(row.preview))
+  const removeAttachment = (key: string) =>
+    setPendingAttachments((rows) => {
+      const row = rows.find((item) => item.key === key)
+      if (row?.preview) URL.revokeObjectURL(row.preview)
+      return rows.filter((item) => item.key !== key)
+    })
+  const addFiles = async (files: File[]) => {
+    const session = chat.session
+    if (!files.length) return
+    if (!session?.caps.attachments || session.caps.maxAttachments <= 0) {
+      setError(t("noAttachments"))
+      return
+    }
+    setError("")
+    let slots = session.caps.maxAttachments - pendingAttachments.length
+    for (const file of files) {
+      if (slots <= 0) {
+        setError(
+          t("attachmentLimit", { max: session.caps.maxAttachments })
+        )
+        break
+      }
+      slots--
+      const maxBytes = session.caps.maxAttachmentBytes
+      if (!file.size || file.size > maxBytes) {
+        setError(
+          t("attachmentTooLarge", {
+            max: Math.max(1, Math.floor(maxBytes / 1024 / 1024))
+          })
+        )
+        continue
+      }
+      const key = crypto.randomUUID()
+      const preview = file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : undefined
+      setPendingAttachments((rows) => [
+        ...rows,
+        { key, name: file.name, preview, state: "uploading" }
+      ])
+      try {
+        const data = (await toBase64(file)).split(",")[1] ?? ""
+        const uploaded = await session.client.uploadAttachment({
+          name: file.name,
+          mediaType: file.type,
+          data
+        })
+        setPendingAttachments((rows) =>
+          rows.map((row) =>
+            row.key === key ? { ...row, state: "ready", uploaded } : row
+          )
+        )
+      } catch (e) {
+        setPendingAttachments((rows) =>
+          rows.map((row) => (row.key === key ? { ...row, state: "failed" } : row))
+        )
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    }
+  }
   const send = async () => {
-    if (disabled || !question.trim() || !agentId) return
+    if (disabled || !agentId) return
+    if (pendingAttachments.some((row) => row.state === "uploading")) {
+      setError(t("attachmentUploading"))
+      return
+    }
+    if (pendingAttachments.some((row) => row.state === "failed")) {
+      setError(t("attachmentFailed"))
+      return
+    }
+    const ready = pendingAttachments.filter((row) => row.uploaded)
+    if (!question.trim() && !ready.length) return
     if (isListening) stopSpeechRecognition()
     setSending(true)
     setError("")
@@ -252,7 +347,14 @@ export default function QwenPawSidebar() {
         }
         context = snapshot.context
       }
-      await chat.send(question, context, agentId)
+      await chat.send(
+        question,
+        context,
+        agentId,
+        ready.map((row) => ({ attachmentId: row.uploaded!.attachmentId }))
+      )
+      clearAttachments(pendingAttachments)
+      setPendingAttachments([])
       setQuestion("")
       setContextMode("none")
       setSnapshot(undefined)
@@ -271,7 +373,16 @@ export default function QwenPawSidebar() {
     setContextOpen(true)
   }
   // Only capabilities the remote channel lacks are advertised in the composer.
-  const capabilities = capabilitiesOf("remote")
+  // Uploads depend on the connected server: its advertised attachment limits
+  // decide whether the image and paperclip buttons act or stay explained.
+  const attachmentsSupported =
+    chat.session?.caps.attachments === true &&
+    chat.session.caps.maxAttachments > 0
+  const capabilities = {
+    ...capabilitiesOf("remote"),
+    imageUpload: attachmentsSupported,
+    fileUpload: attachmentsSupported
+  }
   const unavailableActions = [
     ...(capabilities.vision
       ? []
@@ -560,7 +671,7 @@ export default function QwenPawSidebar() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault()
-                  setError(t("noAttachments"))
+                  void addFiles(Array.from(e.dataTransfer.files))
                 }}>
                 {mode !== "none" && (
                   <button
@@ -577,6 +688,38 @@ export default function QwenPawSidebar() {
                           : ""}
                     </span>
                   </button>
+                )}
+                {pendingAttachments.length > 0 && (
+                  <div className="mx-2 mt-2 flex flex-wrap gap-2">
+                    {pendingAttachments.map((row) => (
+                      <span
+                        key={row.key}
+                        className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-xs ${
+                          row.state === "failed"
+                            ? "border-red-300 text-red-500 dark:border-red-700"
+                            : "border-neutral-200 dark:border-[#525252]"
+                        }`}>
+                        {row.preview ? (
+                          <img
+                            src={row.preview}
+                            alt=""
+                            className="size-6 rounded object-cover"
+                          />
+                        ) : (
+                          <FileTextIcon className="size-4" />
+                        )}
+                        <span className="max-w-32 truncate">{row.name}</span>
+                        {row.state === "uploading" && <Spin size="small" />}
+                        <button
+                          type="button"
+                          aria-label={t("removeAttachment")}
+                          onClick={() => removeAttachment(row.key)}
+                          className="text-gray-500 hover:text-gray-700">
+                          <X className="size-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <SidepanelTextarea
                   ref={textarea}
@@ -610,7 +753,7 @@ export default function QwenPawSidebar() {
                   onPaste={(e) => {
                     if (e.clipboardData.files.length) {
                       e.preventDefault()
-                      setError(t("noAttachments"))
+                      void addFiles(Array.from(e.clipboardData.files))
                     }
                   }}
                 />
@@ -631,6 +774,52 @@ export default function QwenPawSidebar() {
                     </Popover>
                   )}
                   <SidepanelComposerActions compact={useCompactActions}>
+                    {attachmentsSupported && (
+                      <div
+                        className={`items-center gap-3 ${useCompactActions ? "hidden md:flex" : "flex"}`}>
+                        <Tooltip title={playground("tooltip.uploadImage")}>
+                          <button
+                            type="button"
+                            aria-label={playground("tooltip.uploadImage")}
+                            disabled={disabled}
+                            onClick={() => imageInput.current?.click()}
+                            className="inline-flex items-center justify-center text-gray-600 dark:text-gray-300 disabled:opacity-40">
+                            <ImageIcon className="size-4" />
+                          </button>
+                        </Tooltip>
+                        <input
+                          ref={imageInput}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            void addFiles(Array.from(e.target.files ?? []))
+                            e.target.value = ""
+                          }}
+                        />
+                        <Tooltip title={t("uploadFile")}>
+                          <button
+                            type="button"
+                            aria-label={t("uploadFile")}
+                            disabled={disabled}
+                            onClick={() => fileInput.current?.click()}
+                            className="inline-flex items-center justify-center text-gray-600 dark:text-gray-300 disabled:opacity-40">
+                            <PaperclipIcon className="size-4" />
+                          </button>
+                        </Tooltip>
+                        <input
+                          ref={fileInput}
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            void addFiles(Array.from(e.target.files ?? []))
+                            e.target.value = ""
+                          }}
+                        />
+                      </div>
+                    )}
                     {browserSupportsSpeechRecognition && (
                       <Tooltip title={playground("tooltip.speechToText")}>
                         <button
@@ -777,7 +966,11 @@ export default function QwenPawSidebar() {
                       optionsLabel={common("more", "More")}
                       compact={useCompactActions}
                       disabled={
-                        disabled || !question.trim() || !agentId || reading
+                        disabled ||
+                        (!question.trim() &&
+                          !pendingAttachments.some((row) => row.uploaded)) ||
+                        !agentId ||
+                        reading
                       }
                       menuDisabled={!chat.session || sending || reading}
                       label={common("submit")}

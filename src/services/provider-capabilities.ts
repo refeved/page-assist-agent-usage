@@ -57,6 +57,10 @@ const LOCAL_CAPABILITIES: ProviderCapabilities = {
  * Affordances that merely produce or consume the message text itself (reading
  * replies aloud, dictation, quick prompts) are handled in the browser and work
  * against any provider.
+ * Attachments are different: the browser can upload them, but only a server
+ * that advertises the attachment capability can receive them, so the composer
+ * upgrades these two flags from the live capabilities and they stay off until
+ * a connection proves support.
  */
 const REMOTE_CAPABILITIES: ProviderCapabilities = {
   chat: true,
