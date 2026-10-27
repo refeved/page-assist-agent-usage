@@ -411,7 +411,8 @@ test("agent labels prefer the custom name, then the channel name, then default",
 test("oversized screenshots are re-encoded before they can hit the cap", () => {
   assert.deepEqual(fitEdges(4000, 3000, 2560), { width: 2560, height: 1920 })
   assert.deepEqual(fitEdges(1000, 800, 2560), { width: 1000, height: 800 })
-  assert.ok(COMPRESS_ABOVE < 5 * 1024 * 1024)
+  // Full quality by default: only the channel's own cap triggers re-encode.
+  assert.equal(COMPRESS_ABOVE, 5 * 1024 * 1024)
 })
 
 test("compressScreenshotBlob re-encodes only what needs it", async () => {

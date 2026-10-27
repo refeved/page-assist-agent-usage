@@ -1,10 +1,8 @@
-// Full-resolution tab screenshots routinely cross the channel's 5 MB cap
-// once base64 inflation is counted, and relays in front of the service (frp
-// gateways, web proxies) commonly cap request bodies near 1 MB. Anything
-// above a comfortable margin is therefore re-encoded before upload: agents
-// eyeballing a page do not need pixel-perfect captures. The original bytes
-// stay as the fallback whenever re-encoding would not help.
-export const COMPRESS_ABOVE = 3.5 * 1024 * 1024
+// Screenshots are sent untouched whenever they fit the channel's 5 MB cap:
+// full quality is the default, and the relay in front of the service is
+// configured to carry the resulting base64 bodies. Only oversize images are
+// re-encoded, and a 413 mid-flight still triggers the aggressive fallback.
+export const COMPRESS_ABOVE = 5 * 1024 * 1024
 export const MAX_EDGE = 2560
 // Small enough that the base64 JSON body stays under a 1 MiB relay cap.
 export const RELAY_SAFE_BYTES = 700_000
