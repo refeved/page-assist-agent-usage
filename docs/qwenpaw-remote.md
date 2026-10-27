@@ -16,9 +16,10 @@
 专用端口（默认 `127.0.0.1:8766`），绑定一个 Agent。普通 Console URL 或
 OpenAI API 不能替代此地址。安装及配置参见插件 README。
 
-首版支持文字、显式网页分享、独立聊天和追问；显示完整消息，不提供逐 token
-增量、全局 Agent 发现、断线/重启恢复或审批事件推送。频道声明
-`recovery=false`、`approvals=true`、`approvalEvents=false`；前端展示限制提示，
+首版支持文字、显式网页分享、独立聊天和追问，并可随消息上传图片／文件附件；显示
+完整消息，不提供逐 token 增量、全局 Agent 发现、断线/重启恢复或审批事件推送。
+频道声明 `recovery=false`、`approvals=true`、`approvalEvents=false`、
+`attachments=true`；前端展示限制提示，
 不自动恢复断线，收到终态事件才解锁下一次发送。待审批不再写入对话消息，
 而是由输入框工具栏的审批按钮提示：无待审批时按钮置灰，有待审批时高亮并显示
 数量，点击弹出气泡完成批准或拒绝。前端每 5 秒轮询对账，不依赖推送。
@@ -76,26 +77,30 @@ Agent 图标菜单取代模型菜单；第一条消息自动创建频道会话�
 避免下一条问题无意重复附带。PDF、视频字幕和特殊站点的额外网络抓取尚未接入。
 网页预览不会触发本地嵌入、检索或模型摘要。
 
-输入工具栏保留尚未接通的图片、文件、截图／视觉问答和语音入口，
-以禁用状态展示，悬停或键盘聚焦显示原因；小屏优化时收进“更多”菜单并列出原因。
-OCR 选项同样禁用并说明原因。本轮不新增附件传输接口，也不调用本地工具或模型。
-频道不支持的消息编辑重生成、分支、继续生成和临时聊天仍不提供操作；
-粘贴／拖入文件明确报错。远程消息使用同一 Markdown／CodeBlock 组件的安全模式：
-不加载消息图片、不执行 HTML／SVG 预览、不自动朗读，不写入普通聊天的引用回复状态。
-原生本地聊天保留默认渲染和工具行为。
+当连接的频道声明附件能力时，输入工具栏的图片与文件按钮变为可用：选择、粘贴
+或拖入文件后先上传到服务端，并以待缩略图／文件名展示的附件 chip 暂存，发送时
+随消息引用已确认的附件；有就绪附件时允许空问题。截图／视觉问答与 OCR 仍以禁用
+状态展示并说明原因，小屏优化时收进“更多”菜单。语音转文字听写、TTS 朗读回复与
+快捷 Prompt 插入都在浏览器本地完成，对任何后端都可用。频道不支持的消息编辑重生
+成、分支、继续生成和临时聊天仍不提供操作；粘贴或拖入文件在频道未声明附件能力时
+明确报错。远程消息使用同一 Markdown／CodeBlock 组件的安全模式：不加载回复正文内
+引用的远程图片、不执行 HTML／SVG 预览、不写入普通聊天的引用回复状态。TTS 朗读仍
+仅在用户开启“Web UI 朗读”时触发，不是无条件的自动朗读。原生本地聊天保留默认渲染
+和工具行为。
 
 ### 能力矩阵
 
 `src/services/provider-capabilities.ts` 是 Provider 能力的唯一判定来源：Local models
-除“审批卡片”外全部开启，Remote Agent 只保留聊天、页面上下文、历史、新建会话与
-审批卡片。
+除“审批卡片”外全部开启，Remote Agent 保留聊天、页面上下文、历史、新建会话与
+审批卡片；图片／文件上传按连接频道声明的附件能力动态开启。
 
 | 能力 | Local models | Remote Agent |
 | --- | --- | --- |
 | 聊天、页面上下文、会话历史、新建会话 | 支持 | 支持 |
-| RAG、联网搜索、MCP、提示词、临时聊天、逐会话模型参数 | 支持 | 不支持 |
-| 视觉问答／OCR、语音输入、TTS | 支持 | 不支持 |
-| 文件与图片上传、Page Action、WebMCP | 支持 | 不支持 |
+| 语音转文字听写、TTS 朗读、快捷 Prompt | 支持 | 支持（浏览器本地实现） |
+| 图片与文件上传 | 支持 | 支持（需频道声明附件能力；截图／视觉除外） |
+| RAG、联网搜索、MCP、临时聊天、逐会话模型参数 | 支持 | 不支持 |
+| 视觉问答／OCR、Page Action、WebMCP | 支持 | 不支持 |
 
 不支持项在输入工具栏以禁用状态展示并给出原因（小屏收进“更多”菜单），空态与设置页
 不再渲染对应入口，避免用户误以为可用。审批能力由频道声明的 `approvals` 决定；
@@ -153,9 +158,10 @@ OCR 选项同样禁用并说明原因。本轮不新增附件传输接口，也�
 
 ## Browser application contract v1
 
-This section fixes the shapes used by this frontend. The basic channel implements
-the chat endpoints below with all three optional capability flags set to false;
-approval APIs and durable recovery remain future work. These are not built-in
+This section fixes the shapes used by this frontend. The Page Assist channel
+advertises `recovery=false`, `approvals=true`, `approvalEvents=false` and
+`attachments=true`; approval event push and durable recovery remain future
+work. These are not built-in
 Console APIs. JSON responses
 must have `Content-Type: application/json`; event endpoints use
 `text/event-stream`. HTTP failures, including 401, 403, 409 and 429, are displayed
@@ -174,12 +180,17 @@ and do not trigger write retries or model fallback.
   "maxTextChars": 8000,
   "recovery": true,
   "approvals": true,
-  "approvalEvents": false
+  "approvalEvents": false,
+  "attachments": true,
+  "maxAttachmentBytes": 5242880,
+  "maxAttachments": 4
 }
 ```
 
-All fields are required. Instance and principal strings partition caches, not
-authorization. Unsupported versions or malformed flags/limits fail closed.
+Core fields are required; instance and principal strings partition caches, not
+authorization. Unsupported versions or malformed flags/limits fail closed. The
+three attachment fields arrived after v1: a server that omits them is simply
+treated as not supporting uploads.
 
 `GET /agents`: `{ "agents": [{ "id": "researcher", "name": "Researcher",
 "description": "Optional description" }] }`.
@@ -207,11 +218,14 @@ Creation is not automatically retried after an ambiguous response or cache error
     "content": "Exactly the previewed Markdown",
     "contentHash": "sha256:...",
     "truncated": false
-  }
+  },
+  "attachments": [{ "attachmentId": "uploaded-attachment-id" }]
 }
 ```
 
 `pageContext` is omitted unless explicitly shared; mode may also be `selection`.
+`attachments` is omitted for text-only messages; each entry references a prior
+`POST /attachments` upload and at most `maxAttachments` may ride one message.
 The response and `GET /requests/:requestId` both return
 `{ "requestId": "...", "conversationId": "...", "state": "accepted" }`.
 
@@ -274,8 +288,21 @@ confirmed outcome. A fully usable continuous-chat deployment should advertise
 and implement recovery.
 
 Closing the sidebar or stopping display aborts subscriptions only. There is no
-remote cancellation button, regenerate, edit, branch, queue, image/file upload,
+remote cancellation button, regenerate, edit, branch, queue,
 client memory or temporary/non-retention mode.
+
+### Attachments
+
+`POST /attachments`: `{ "name": "shot.png", "mediaType": "image/png", "data":
+"<base64>" }` → `{ "attachmentId": "server-uuid", "name": "shot.png", "kind":
+"image", "mediaType": "image/png", "bytes": 1234 }`. The decoded payload is
+capped by `maxAttachmentBytes`. The server classifies real images by magic
+bytes (everything else as a file), sanitizes the display name and stores the
+bytes inside the bound Agent workspace; the Agent receives them as image/file
+content rather than inline chat text. Each `attachmentId` is consumed by one
+message; a reference to an unknown or already-used id fails with `400`, and the
+browser re-uploads on retry rather than resending the reference. Uploads are
+never automatically retried after an ambiguous response.
 
 ### Native approvals
 

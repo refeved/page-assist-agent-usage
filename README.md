@@ -129,10 +129,14 @@ the Page Assist wordmark, and the standalone Web UI keeps its existing send path
   The choice is remembered and can be changed from the header switch at any time.
 - **Configuration**: Remote Agent has its own settings tab next to Ollama and
   OpenAI compatible API, both in the options page and in the side panel settings.
-- **Unsupported local features are explicit**: image, file, screenshot/vision and
-  speech entries stay visible but disabled with a reason, while RAG, web search,
-  MCP, prompts, temporary chat, per-chat model settings, Page Action and WebMCP are
-  not offered in Remote Agent because those tools run on the Agent side.
+- **Attachments and local features are explicit**: image and file upload act once
+  the channel advertises attachment support — pick, paste or drop files and they
+  stage as chips that ride the next message, and a blank question is allowed with
+  a ready attachment. Speech dictation, TTS playback and quick-prompt insertion run
+  in the browser. Screenshot/vision and OCR entries stay visible but disabled with
+  a reason, while RAG, web search, MCP, temporary chat, per-chat model settings,
+  Page Action and WebMCP are not offered in Remote Agent because those tools run on
+  the Agent side.
 
 No Ollama configuration is required for the remote mode.
 
@@ -140,7 +144,8 @@ No Ollama configuration is required for the remote mode.
 installable **Page Assist channel plugin** in the standalone companion repository
 `qwenpaw-channel-page-assist`. It runs in the QwenPaw process on a dedicated port
 (default `127.0.0.1:8766`), bound to one Agent. It supports text, explicit webpage
-sharing and follow-up chat with complete replies. Native approvals are surfaced on
+sharing and follow-up chat with complete replies, plus image and file attachments
+when the plugin announces them. Native approvals are surfaced on
 a composer button beside the attachment actions and resolved in the side panel;
 disconnect/restart recovery and approval event push are deferred. A normal Console
 or OpenAI-compatible URL is not a channel endpoint. Failures are explicit, with no
