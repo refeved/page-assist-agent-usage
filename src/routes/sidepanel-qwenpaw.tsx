@@ -66,7 +66,8 @@ import { getVariable } from "@/utils/select-variable"
 import { toBase64 } from "@/libs/to-base64"
 import { getScreenshotFromCurrentTab } from "@/libs/get-screenshot"
 import { dataUrlToFile } from "@/libs/qwenpaw/image-payload"
-import { compressImageFile } from "@/libs/qwenpaw/compress-image"
+import { compressImageFile, RELAY_SAFE_BYTES } from "@/libs/qwenpaw/compress-image"
+import { RemoteHTTPError } from "@/services/qwenpaw/client"
 import {
   capture,
   truncateCapture,
@@ -304,12 +305,33 @@ export default function QwenPawSidebar() {
         { key, name: file.name, preview, state: "uploading" }
       ])
       try {
-        const data = (await toBase64(file)).split(",")[1] ?? ""
-        const uploaded = await session.client.uploadAttachment({
+        const payload = {
           name: file.name,
           mediaType: file.type,
-          data
-        })
+          data: (await toBase64(file)).split(",")[1] ?? ""
+        }
+        let uploaded
+        try {
+          uploaded = await session.client.uploadAttachment(payload)
+        } catch (e) {
+          // A 413 that the channel itself cannot produce (its body cap is
+          // above our file cap) means a relay in front of the service sized
+          // the base64 body out. Images get one aggressive re-encode and a
+          // single retry; anything else fails closed.
+          if (
+            !(e instanceof RemoteHTTPError) ||
+            e.status !== 413 ||
+            !file.type.startsWith("image/")
+          )
+            throw e
+          const shrunk = await compressImageFile(file, RELAY_SAFE_BYTES)
+          if (shrunk === file) throw e
+          uploaded = await session.client.uploadAttachment({
+            name: shrunk.name,
+            mediaType: shrunk.type,
+            data: (await toBase64(shrunk)).split(",")[1] ?? ""
+          })
+        }
         setPendingAttachments((rows) =>
           rows.map((row) =>
             row.key === key ? { ...row, state: "ready", uploaded } : row

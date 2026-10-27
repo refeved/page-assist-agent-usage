@@ -9,6 +9,7 @@ import { applyMessageEvent } from "../src/services/qwenpaw/reducer.ts"
 import { dataUrlToFile } from "../src/libs/qwenpaw/image-payload.ts"
 import {
   COMPRESS_ABOVE,
+  RELAY_SAFE_BYTES,
   compressImageFile,
   compressScreenshotBlob,
   fitEdges
@@ -454,6 +455,30 @@ test("compressScreenshotBlob re-encodes only what needs it", async () => {
     encode: async () => grown
   })
   assert.equal(kept, lossy)
+
+  // A tight relay-safe target walks down the ladder until a rung fits: the
+  // fake encoder yields ~400 bytes per pixel of width, so the first fitting
+  // rung is the 1600px pass.
+  const fiveM = new File([new Uint8Array(5 * 1024 * 1024)], "big.png", {
+    type: "image/png"
+  })
+  const rungs: Array<{ width: number; quality: number }> = []
+  const stepped = await compressScreenshotBlob(
+    fiveM,
+    {
+      decode: async () => ({ width: 3000, height: 2000 }),
+      encode: async (_b, width, _h, quality) => {
+        rungs.push({ width, quality })
+        return new Blob([new Uint8Array(width * 400)], { type: "image/jpeg" })
+      }
+    },
+    RELAY_SAFE_BYTES
+  )
+  assert.equal(stepped.size, 1600 * 400)
+  assert.deepEqual(
+    rungs.map((r) => r.width),
+    [2560, 1600]
+  )
 })
 
 test("compressImageFile only touches large images", async () => {

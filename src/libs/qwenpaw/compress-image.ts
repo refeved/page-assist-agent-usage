@@ -1,10 +1,13 @@
 // Full-resolution tab screenshots routinely cross the channel's 5 MB cap
-// once base64 inflation is counted, so anything above a comfortable margin
-// is re-encoded smaller before upload. Agent eyeballing a page does not need
-// pixel-perfect captures: screen-reader resolution JPEG is enough, and the
-// original bytes stay as the fallback whenever re-encoding would not help.
+// once base64 inflation is counted, and relays in front of the service (frp
+// gateways, web proxies) commonly cap request bodies near 1 MB. Anything
+// above a comfortable margin is therefore re-encoded before upload: agents
+// eyeballing a page do not need pixel-perfect captures. The original bytes
+// stay as the fallback whenever re-encoding would not help.
 export const COMPRESS_ABOVE = 3.5 * 1024 * 1024
 export const MAX_EDGE = 2560
+// Small enough that the base64 JSON body stays under a 1 MiB relay cap.
+export const RELAY_SAFE_BYTES = 700_000
 
 // Longest edge after downscale; never upscales.
 export const fitEdges = (
@@ -27,14 +30,19 @@ interface Bitmap {
 
 export interface ImageCodec {
   decode: (blob: Blob) => Promise<Bitmap>
-  encode: (bitmap: Bitmap, width: number, height: number) => Promise<Blob>
+  encode: (
+    bitmap: Bitmap,
+    width: number,
+    height: number,
+    quality: number
+  ) => Promise<Blob>
 }
 
 // The side panel implementation; injectable so the policy stays testable
 // without a DOM.
 const domCodec: ImageCodec = {
   decode: (blob) => createImageBitmap(blob),
-  encode: async (bitmap, width, height) => {
+  encode: async (bitmap, width, height, quality) => {
     const canvas = document.createElement("canvas")
     canvas.width = width
     canvas.height = height
@@ -43,26 +51,42 @@ const domCodec: ImageCodec = {
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error("encode failed"))),
         "image/jpeg",
-        0.85
+        quality
       )
     )
   }
 }
 
+// Each rung trades resolution for bytes; the last one still reads cleanly on
+// a phone screen, which is plenty for a page overview.
+const LADDER: Array<{ edge: number; quality: number }> = [
+  { edge: MAX_EDGE, quality: 0.85 },
+  { edge: 1600, quality: 0.75 },
+  { edge: 1280, quality: 0.65 },
+  { edge: 1024, quality: 0.55 }
+]
+
 export const compressScreenshotBlob = async (
   blob: Blob,
-  codec: ImageCodec = domCodec
+  codec: ImageCodec = domCodec,
+  maxBytes = COMPRESS_ABOVE
 ): Promise<Blob> => {
-  if (blob.size <= COMPRESS_ABOVE) return blob
+  if (blob.size <= maxBytes) return blob
   const bitmap = await codec.decode(blob)
   try {
-    for (const maxEdge of [MAX_EDGE, 1280]) {
-      const size = fitEdges(bitmap.width, bitmap.height, maxEdge)
-      const encoded = await codec.encode(bitmap, size.width, size.height)
-      if (encoded.size <= COMPRESS_ABOVE || maxEdge === 1280)
-        return encoded.size < blob.size ? encoded : blob
+    let best: Blob | null = null
+    for (const rung of LADDER) {
+      const size = fitEdges(bitmap.width, bitmap.height, rung.edge)
+      const encoded = await codec.encode(
+        bitmap,
+        size.width,
+        size.height,
+        rung.quality
+      )
+      if (!best || encoded.size < best.size) best = encoded
+      if (best.size <= maxBytes) break
     }
-    return blob
+    return best && best.size < blob.size ? best : blob
   } finally {
     bitmap.close?.()
   }
@@ -71,11 +95,13 @@ export const compressScreenshotBlob = async (
 // Policy wrapper for the composer: images above the comfortable margin are
 // re-encoded, everything else (and any compression failure) keeps its bytes
 // and runs into the regular size gate unchanged.
-export const compressImageFile = async (file: File): Promise<File> => {
-  if (!file.type.startsWith("image/") || file.size <= COMPRESS_ABOVE)
-    return file
+export const compressImageFile = async (
+  file: File,
+  maxBytes = COMPRESS_ABOVE
+): Promise<File> => {
+  if (!file.type.startsWith("image/") || file.size <= maxBytes) return file
   try {
-    const blob = await compressScreenshotBlob(file)
+    const blob = await compressScreenshotBlob(file, undefined, maxBytes)
     if (blob === file) return file
     const name = file.name.replace(/\.[A-Za-z0-9]{1,8}$/, "") || "image"
     return new File([blob], `${name}.jpg`, {
