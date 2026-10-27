@@ -16,7 +16,8 @@ import {
   approval,
   capabilities,
   output,
-  request
+  request,
+  uploadedAttachment
 } from "../src/services/qwenpaw/validation.ts"
 import { isTerminal } from "../src/services/qwenpaw/types.ts"
 import { resolveAgentName } from "../src/services/qwenpaw/agent-name.ts"
@@ -151,6 +152,48 @@ test("DTO validation fails closed for unknown states, protocols and incomplete a
   assert.throws(() => approval({ id: "fake", target: "from markdown" }))
   assert.throws(() => output({ type: "execute.command", requestId: "r" }))
 })
+test("capabilities stay valid for servers without attachment fields", () => {
+  const legacy = capabilities({
+    protocolVersion: 1,
+    instanceId: "i",
+    principalScope: "p",
+    maxContextChars: 30000,
+    maxTextChars: 8000,
+    recovery: false,
+    approvals: true,
+    approvalEvents: false
+  })
+  assert.equal(legacy.attachments, false)
+  assert.equal(legacy.maxAttachments, 0)
+  assert.equal(legacy.maxAttachmentBytes, 0)
+  const modern = capabilities({
+    protocolVersion: 1,
+    instanceId: "i",
+    principalScope: "p",
+    maxContextChars: 30000,
+    maxTextChars: 8000,
+    recovery: false,
+    approvals: true,
+    approvalEvents: false,
+    attachments: true,
+    maxAttachmentBytes: 5242880,
+    maxAttachments: 4
+  })
+  assert.equal(modern.attachments, true)
+  assert.equal(modern.maxAttachments, 4)
+  assert.equal(modern.maxAttachmentBytes, 5242880)
+  assert.equal(
+    uploadedAttachment({
+      attachmentId: "a",
+      name: "shot.png",
+      kind: "image",
+      mediaType: "image/png",
+      bytes: 12
+    }).kind,
+    "image"
+  )
+  assert.throws(() => uploadedAttachment({ attachmentId: "a", kind: "exe" }))
+})
 const config = { id: "local", baseUrl: "https://service.example" }
 test("client authenticates fixed paths, rejects redirects and sends no history", async () => {
   let calls = 0
@@ -181,6 +224,40 @@ test("client authenticates fixed paths, rejects redirects and sends no history",
     text: "new question"
   })
   assert.equal(calls, 1)
+})
+test("attachment uploads post base64 once and fail closed", async () => {
+  let calls = 0
+  const fetcher: typeof fetch = async (url, init) => {
+    calls++
+    assert.equal(url, "https://service.example/api/page-assist/attachments")
+    assert.deepEqual(JSON.parse(String(init?.body)), {
+      name: "shot.png",
+      mediaType: "image/png",
+      data: "cG5n"
+    })
+    return Response.json({
+      attachmentId: "a",
+      name: "shot.png",
+      kind: "image",
+      mediaType: "image/png",
+      bytes: 3
+    })
+  }
+  const uploaded = await new QwenPawClient(
+    config,
+    "restricted",
+    fetcher
+  ).uploadAttachment({ name: "shot.png", mediaType: "image/png", data: "cG5n" })
+  assert.equal(uploaded.attachmentId, "a")
+  assert.equal(calls, 1)
+  await assert.rejects(
+    new QwenPawClient(
+      config,
+      "x",
+      async () =>
+        Response.json({ attachmentId: "a", name: "n", kind: "exe" })
+    ).uploadAttachment({ name: "n", mediaType: "", data: "x" })
+  )
 })
 for (const status of [401, 403, 409, 429, 500]) {
   test(`HTTP ${status} is explicit and writes are never retried`, async () => {

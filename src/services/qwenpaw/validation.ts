@@ -5,7 +5,8 @@ import type {
   OutputEvent,
   RemoteMessage,
   RequestRecord,
-  RequestState
+  RequestState,
+  UploadedAttachment
 } from "./types.ts"
 
 export function object(value: unknown): Record<string, unknown> {
@@ -49,6 +50,9 @@ export function capabilities(value: unknown): Capabilities {
       throw new Error("Invalid QwenPaw size limit")
     }
   }
+  // Attachment fields are optional: servers predating uploads omit
+  // them entirely, so a missing flag means "unsupported", never "invalid".
+  const attachments = v.attachments === true
   return {
     protocolVersion: 1,
     instanceId: id(v.instanceId),
@@ -57,7 +61,28 @@ export function capabilities(value: unknown): Capabilities {
     maxTextChars: Number(v.maxTextChars),
     recovery: flag(v.recovery),
     approvals: flag(v.approvals),
-    approvalEvents: flag(v.approvalEvents)
+    approvalEvents: flag(v.approvalEvents),
+    attachments,
+    maxAttachmentBytes: positiveLimit(v.maxAttachmentBytes),
+    maxAttachments: attachments ? positiveLimit(v.maxAttachments) : 0
+  }
+}
+function positiveLimit(value: unknown): number {
+  return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0
+}
+export function uploadedAttachment(value: unknown): UploadedAttachment {
+  const v = object(value)
+  if (v.kind !== "image" && v.kind !== "file") {
+    throw new Error("Invalid QwenPaw attachment kind")
+  }
+  return {
+    attachmentId: id(v.attachmentId),
+    name: text(v.name),
+    kind: v.kind,
+    mediaType: text(v.mediaType),
+    bytes: Number.isSafeInteger(v.bytes) && Number(v.bytes) >= 0
+      ? Number(v.bytes)
+      : 0
   }
 }
 export function request(value: unknown): RequestRecord {

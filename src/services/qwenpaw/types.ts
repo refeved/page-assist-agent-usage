@@ -20,6 +20,9 @@ export interface Capabilities {
   recovery: boolean
   approvals: boolean
   approvalEvents: boolean
+  attachments: boolean
+  maxAttachmentBytes: number
+  maxAttachments: number
 }
 export interface Agent {
   id: string
@@ -36,10 +39,20 @@ export interface PageContext {
   contentHash: string
   truncated: boolean
 }
+export interface AttachmentRef {
+  attachmentId: string
+}
+export interface UploadedAttachment extends AttachmentRef {
+  name: string
+  kind: "image" | "file"
+  mediaType: string
+  bytes: number
+}
 export interface MessagePayload {
   requestId: string
   text: string
   pageContext?: PageContext
+  attachments?: AttachmentRef[]
 }
 export interface RemoteMessage {
   id: string

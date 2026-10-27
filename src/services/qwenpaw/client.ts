@@ -111,6 +111,14 @@ export class QwenPawClient {
       throw new Error("Request binding mismatch")
     return result
   }
+  async uploadAttachment(
+    input: { name: string; mediaType: string; data: string },
+    signal?: AbortSignal
+  ) {
+    return v.uploadedAttachment(
+      await this.json("/attachments", signal, input)
+    )
+  }
   async request(
     requestId: string,
     conversationId: string,

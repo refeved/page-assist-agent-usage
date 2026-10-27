@@ -11,6 +11,7 @@ import { isTerminal } from "@/services/qwenpaw/types"
 import type {
   Agent,
   Approval,
+  AttachmentRef,
   Capabilities,
   Connection,
   Conversation,
@@ -473,14 +474,18 @@ export function useQwenPawChat(agentDisplayName = "") {
   async function send(
     value: string,
     pageContext?: PageContext,
-    agentId?: string
+    agentId?: string,
+    attachments?: AttachmentRef[]
   ) {
     if (!session || operation.current)
       throw new Error("Connection is not ready")
     if (lifetime.current.signal.aborted) throw new Error("Connection is closed")
     if (requestRef.current && !isTerminal(requestRef.current.state))
       throw new Error("Request unresolved; reconcile before sending")
-    if (!value.trim() || value.length > session.caps.maxTextChars)
+    if (
+      (!value.trim() && !attachments?.length) ||
+      value.length > session.caps.maxTextChars
+    )
       throw new Error("Question is empty or exceeds the server limit")
     const target = conversation || (agentId ? await create(agentId) : undefined)
     if (!target) throw new Error("Select an Agent to start a conversation")
@@ -493,7 +498,8 @@ export function useQwenPawChat(agentDisplayName = "") {
       record = await repo.prepare(target, {
         requestId: crypto.randomUUID(),
         text: value,
-        ...(pageContext ? { pageContext } : {})
+        ...(pageContext ? { pageContext } : {}),
+        ...(attachments?.length ? { attachments } : {})
       })
       requestRef.current = record
       setActiveRequest(record)
