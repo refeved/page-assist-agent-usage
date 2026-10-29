@@ -64,7 +64,12 @@ export const useSmartScroll = (
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight } = container
-      const isScrollingUp = scrollTop < lastScrollTop.current
+      // When the content shrinks (transcript re-render, list reload) the
+      // browser clamps scrollTop down by itself. That is not the user
+      // scrolling up; only honour an upward scroll while the content keeps
+      // its height or grows.
+      const collapsed = scrollHeight < lastScrollHeight.current
+      const isScrollingUp = scrollTop < lastScrollTop.current && !collapsed
 
       // Programmatic scrolls only ever move towards the bottom, and
       // `lastScrollTop` is updated right after each one, so a decrease is

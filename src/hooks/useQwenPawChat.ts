@@ -67,6 +67,11 @@ export function useQwenPawChat(agentDisplayName = "") {
   const [connected, setConnected] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const operation = useRef(false)
+  // Tracks which conversation the transcript currently shows so a rerun of
+  // the stream effect for the SAME conversation (every submit bumps
+  // refreshKey) keeps the visible history instead of blanking the list,
+  // collapsing the scroll to the top and stranding the user on old content.
+  const streamedConversationId = useRef<string | undefined>(undefined)
   const lifetime = useRef<AbortController>()
   const stream = useRef<AbortController>()
   const requestRef = useRef<StoredRequest>()
@@ -226,7 +231,10 @@ export function useQwenPawChat(agentDisplayName = "") {
   }, [session, refreshApprovals])
 
   useEffect(() => {
-    setMessages([])
+    if (streamedConversationId.current !== conversation?.id) {
+      streamedConversationId.current = conversation?.id
+      setMessages([])
+    }
     setActiveRequest(undefined)
     requestRef.current = undefined
     setConnected(false)
