@@ -409,9 +409,6 @@ export default function QwenPawSidebar() {
       setSnapshot(undefined)
       setConfirmed(false)
       setContextOpen(false)
-      // Submitting means the user wants to watch their own message and the
-      // answer: jump back to the bottom even if they had scrolled up.
-      autoScrollToBottom()
       textarea.current?.focus()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
