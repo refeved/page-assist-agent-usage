@@ -484,7 +484,7 @@ export default function QwenPawSidebar() {
   // transcript, and a pending approval only lights up this button.
   const pendingApprovals = chat.approvals
   const approvalPanel = (
-    <div className="flex max-h-80 w-72 max-w-[calc(100vw-3rem)] flex-col gap-2 overflow-y-auto">
+    <div className="flex max-h-[calc(100vh-14rem)] w-96 max-w-[calc(100vw-3rem)] flex-col gap-2 overflow-y-auto">
       <p className="text-xs text-gray-500 dark:text-gray-400">
         {t("approvalNotice")}
       </p>
@@ -521,7 +521,7 @@ export default function QwenPawSidebar() {
             {chat.decidingId === a.id && (
               <p role="status">{t("submitting")}</p>
             )}
-            <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-1.5 dark:bg-[#303030]">
+            <pre className="whitespace-pre-wrap break-words rounded bg-gray-50 p-1.5 dark:bg-[#303030]">
               {a.target}
             </pre>
             <p className="text-gray-600 dark:text-gray-300">{a.risk}</p>
