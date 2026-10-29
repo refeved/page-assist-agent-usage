@@ -60,6 +60,9 @@ General Settings（侧栏的 Ollama 配置所在页）。
 副作用的普通聊天控制器。消息气泡、代码高亮、表格、复制、动态输入框、
 Enter／Shift+Enter／输入法处理、聚焦快捷键和智能滚动复用原生实现。
 两种模式还共用输入区宽度与布局、工具栏间距、模型／Agent 图标菜单和发送控件。
+同一会话的重新提交不再先清空消息列表再拉取历史：内容塌缩会把视图钳到顶部，
+重建会误关自动跟随，现改为原位替换。向上翻阅时发送则停留在阅读位置，不强制
+跳回底部，与本地聊天行为一致；内容塌缩引起的滚动位置下降不再被当作用户上滚。
 默认使用原生“提交 + 下拉选项”，开启小屏优化时两者均改为圆形发送按钮和“更多”
 工具菜单。Enter 发送偏好可在发送下拉或小屏“更多”菜单调整。
 Agent 图标菜单取代模型菜单；第一条消息自动创建频道会话，后续问题沿用该会话。
@@ -81,7 +84,11 @@ Agent 图标菜单取代模型菜单；第一条消息自动创建频道会话�
 粘贴或拖入文件后先上传到服务端，并以待缩略图／文件名展示的附件 chip 暂存，发送时
 随消息引用已确认的附件；有就绪附件时允许空问题。截图按钮捕获当前可见标签页
 （与本地 vision 相同的 `captureVisibleTab` 路径），生成的 PNG 走同一条附件上传
-链路，因此 `vision` 与图片／文件共用同一个能力开关。OCR 仍以禁用状态展示并说明
+链路，因此 `vision` 与图片／文件共用同一个能力开关。附件默认全画质直发：仅当
+图片超过频道单附件上限（默认 5 MiB）时才按最长边 2560→1024 px 的阶梯重编码为
+JPEG；若请求被频道前方的中继以 413 拒绝（如反向代理的 body 上限低于 base64 膨胀
+后的体积），图片会激进压缩到 700 KB 以内（base64 后小于 1 MiB）并单独重试一次，
+其余情况仍明确报错、不盲目重发。OCR 仍以禁用状态展示并说明
 原因，小屏优化时收进“更多”菜单。语音转文字听写、TTS 朗读回复与
 快捷 Prompt 插入都在浏览器本地完成，对任何后端都可用。频道不支持的消息编辑重生
 成、分支、继续生成和临时聊天仍不提供操作；粘贴或拖入文件在频道未声明附件能力时
@@ -108,7 +115,8 @@ Agent 图标菜单取代模型菜单；第一条消息自动创建频道会话�
 不再渲染对应入口，避免用户误以为可用。审批能力由频道声明的 `approvals` 决定；
 基础频道声明 `approvals=true`，侧栏直接处理原生待审批，无需跳转 Console。
 审批入口与上传图片、插入网页内容等按钮同排：无待审批时为灰色禁用态，有待审批时
-变色并显示数量角标，点击后以气泡展示工具、目标、风险与授权范围。
+变色并显示数量角标，点击后以气泡展示工具、目标、风险与授权范围。气泡高度随
+视口自适应，目标细节完整展开、不做内部滚动截断，批准与拒绝选项无需下拉即可见。
 
 ## Configuration and privacy
 
@@ -304,7 +312,10 @@ bytes inside the bound Agent workspace; the Agent receives them as image/file
 content rather than inline chat text. Each `attachmentId` is consumed by one
 message; a reference to an unknown or already-used id fails with `400`, and the
 browser re-uploads on retry rather than resending the reference. Uploads are
-never automatically retried after an ambiguous response.
+never automatically retried after an ambiguous response. A relay 413 in front of
+the channel is an explicit rejection with no server-side effect, so images hit by
+one are re-encoded to a relay-safe size and uploaded once more; that fallback
+never applies to non-image uploads or resends a consumed attachment id.
 
 ### Native approvals
 

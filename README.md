@@ -134,7 +134,9 @@ the Page Assist wordmark, and the standalone Web UI keeps its existing send path
   stage as chips that ride the next message, and a blank question is allowed with
   a ready attachment. The screenshot button captures the visible tab and stages
   the PNG through the same attachment upload path, so it lights up together with
-  image and file upload. Speech dictation, TTS playback and quick-prompt insertion run
+  image and file upload. Attachments ship at full quality; only images over the
+  channel cap are re-encoded, and one relay 413 triggers a single shrunk retry.
+  Speech dictation, TTS playback and quick-prompt insertion run
   in the browser. The OCR entry stays visible but disabled with
   a reason, while RAG, web search, MCP, temporary chat, per-chat model settings,
   Page Action and WebMCP are not offered in Remote Agent because those tools run on
