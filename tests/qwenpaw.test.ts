@@ -22,14 +22,21 @@ import {
 } from "../src/services/qwenpaw/privacy.ts"
 import {
   approval,
+  attachmentList,
   capabilities,
+  message,
   output,
   request,
   uploadedAttachment
 } from "../src/services/qwenpaw/validation.ts"
+import { messageMedia } from "../src/libs/qwenpaw/message-media.ts"
+import type { MediaStore } from "../src/libs/qwenpaw/message-media.ts"
 import { isTerminal } from "../src/services/qwenpaw/types.ts"
 import { resolveAgentName } from "../src/services/qwenpaw/agent-name.ts"
-import type { RemoteMessage } from "../src/services/qwenpaw/types.ts"
+import type {
+  RemoteAttachment,
+  RemoteMessage
+} from "../src/services/qwenpaw/types.ts"
 
 const stream = (bytes: Uint8Array, size = 1) =>
   new ReadableStream<Uint8Array>({
@@ -174,6 +181,7 @@ test("capabilities stay valid for servers without attachment fields", () => {
   assert.equal(legacy.attachments, false)
   assert.equal(legacy.maxAttachments, 0)
   assert.equal(legacy.maxAttachmentBytes, 0)
+  assert.equal(legacy.media, false)
   const modern = capabilities({
     protocolVersion: 1,
     instanceId: "i",
@@ -185,11 +193,13 @@ test("capabilities stay valid for servers without attachment fields", () => {
     approvalEvents: false,
     attachments: true,
     maxAttachmentBytes: 5242880,
-    maxAttachments: 4
+    maxAttachments: 4,
+    media: true
   })
   assert.equal(modern.attachments, true)
   assert.equal(modern.maxAttachments, 4)
   assert.equal(modern.maxAttachmentBytes, 5242880)
+  assert.equal(modern.media, true)
   assert.equal(
     uploadedAttachment({
       attachmentId: "a",
@@ -490,3 +500,219 @@ test("compressImageFile only touches large images", async () => {
   const tiny = new File([new Uint8Array(10)], "x.png", { type: "image/png" })
   assert.equal(await compressImageFile(tiny), tiny)
 })
+
+test("reply attachments need exactly one readable, public-free source", () => {
+  // Servers predating reply media simply omit the field.
+  assert.deepEqual(attachmentList(undefined), [])
+  assert.deepEqual(
+    attachmentList([
+      {
+        mediaId: "m",
+        kind: "file",
+        name: "a.pdf",
+        mediaType: "application/pdf"
+      }
+    ]),
+    [
+      {
+        mediaId: "m",
+        url: undefined,
+        kind: "file",
+        name: "a.pdf",
+        mediaType: "application/pdf",
+        bytes: 0
+      }
+    ]
+  )
+  const linked = attachmentList([
+    {
+      url: "https://cdn.example/chart.png",
+      kind: "image",
+      name: "chart.png",
+      mediaType: "image/png"
+    }
+  ])
+  assert.equal(linked[0].url, "https://cdn.example/chart.png")
+  assert.equal(linked[0].mediaId, undefined)
+  for (const row of [
+    { mediaId: "m", kind: "exe", name: "a", mediaType: "" },
+    { kind: "file", name: "a", mediaType: "" },
+    { mediaId: "", kind: "file", name: "a", mediaType: "" },
+    { url: "file:///secret/a.pdf", kind: "file", name: "a", mediaType: "" },
+    { url: "javascript:alert(1)", kind: "file", name: "a", mediaType: "" },
+    { url: "not a url", kind: "file", name: "a", mediaType: "" }
+  ]) {
+    assert.throws(() => attachmentList([row]))
+  }
+  assert.throws(() =>
+    attachmentList(
+      Array.from({ length: 9 }, () => ({
+        mediaId: "m",
+        kind: "file",
+        name: "a",
+        mediaType: ""
+      }))
+    )
+  )
+})
+
+test("messages and snapshots carry attachments, deltas do not erase them", () => {
+  const legacy = message({
+    id: "m",
+    requestId: "r",
+    role: "assistant",
+    content: "hi",
+    status: "complete"
+  })
+  assert.deepEqual(legacy.attachments, [])
+  const media = [
+    {
+      mediaId: "m1",
+      kind: "image",
+      name: "p.png",
+      mediaType: "image/png",
+      bytes: 3
+    }
+  ]
+  const snapshot = output({
+    type: "message.snapshot",
+    requestId: "r",
+    messageId: "m",
+    content: "hi",
+    attachments: media,
+    status: "complete"
+  })
+  if (snapshot.type !== "message.snapshot")
+    throw new Error("Expected a message snapshot")
+  assert.deepEqual(
+    message({
+      id: "m",
+      requestId: "r",
+      role: "assistant",
+      content: "hi",
+      attachments: media,
+      status: "complete"
+    }).attachments,
+    snapshot.attachments
+  )
+  let rows = applyMessageEvent([], snapshot)
+  assert.equal(rows[0].attachments.length, 1)
+  rows = applyMessageEvent(
+    rows,
+    output({
+      type: "message.delta",
+      requestId: "r",
+      messageId: "m",
+      delta: "!"
+    })
+  )
+  assert.equal(rows[0].content, "hi!")
+  assert.equal(rows[0].attachments.length, 1)
+})
+
+test("media bytes use the authenticated route without insisting on JSON", async () => {
+  const fetcher: typeof fetch = async (url, init) => {
+    assert.equal(url, "https://service.example/api/page-assist/media/m%201")
+    assert.equal(init?.redirect, "error")
+    assert.equal(init?.credentials, "omit")
+    assert.equal(
+      (init?.headers as Record<string, string>).Authorization,
+      "Bearer restricted"
+    )
+    assert.equal((init?.headers as Record<string, string>).Accept, "*/*")
+    return new Response(new Uint8Array([1, 2, 3]), {
+      headers: { "content-type": "image/png" }
+    })
+  }
+  const blob = await new QwenPawClient(config, "restricted", fetcher).media(
+    "m 1"
+  )
+  assert.equal(blob.size, 3)
+  await assert.rejects(
+    new QwenPawClient(
+      config,
+      "x",
+      async () => new Response("gone", { status: 404 })
+    ).media("m"),
+    (e: unknown) => e instanceof RemoteHTTPError && e.status === 404
+  )
+  // An id that is not an identifier never reaches the URL at all.
+  await assert.rejects(
+    new QwenPawClient(config, "x", async () => Response.json({})).media("")
+  )
+})
+
+test("the transcript shows ready media and explains missing bytes", () => {
+  const attachment = (
+    name: string,
+    kind: "image" | "file",
+    source: { mediaId?: string; url?: string }
+  ): RemoteAttachment => ({
+    mediaId: source.mediaId,
+    url: source.url,
+    kind,
+    name,
+    mediaType: `${kind}/x`,
+    bytes: source.mediaId ? 1 : 0
+  })
+  const row: RemoteMessage = {
+    id: "m",
+    requestId: "r",
+    role: "assistant",
+    content: "here",
+    status: "complete",
+    attachments: [
+      attachment("a.png", "image", { mediaId: "ready" }),
+      attachment("b.png", "image", { mediaId: "pending" }),
+      attachment("c.png", "image", { mediaId: "gone" }),
+      attachment("d.pdf", "file", { mediaId: "doc" }),
+      attachment("e.png", "image", { url: "https://cdn.example/e.png" })
+    ]
+  }
+  const store: MediaStore = {
+    ready: { status: "ready", url: "blob:1" },
+    gone: { status: "failed" },
+    doc: { status: "ready", url: "blob:2" }
+  }
+  const media = messageMedia(row, store)
+  assert.deepEqual(media.images, ["blob:1", "https://cdn.example/e.png"])
+  assert.deepEqual(
+    media.files.map((file) => [
+      file.name,
+      file.status,
+      file.href,
+      file.external
+    ]),
+    [
+      // A previewable picture still needs a saveable chip.
+      ["a.png", "ready", "blob:1", false],
+      // One whose bytes are still coming is visible as a pending chip.
+      ["b.png", "loading", undefined, false],
+      ["c.png", "failed", undefined, false],
+      ["d.pdf", "ready", "blob:2", false],
+      ["e.png", "ready", "https://cdn.example/e.png", true]
+    ]
+  )
+  const hosted = attachment("f.pdf", "file", {
+    url: "https://cdn.example/f.pdf"
+  })
+  const link = messageMedia(
+    { ...row, attachments: [hosted] },
+    {}
+  )
+  assert.deepEqual(link.files, [
+    {
+      key: "m:0",
+      name: "f.pdf",
+      status: "ready",
+      href: "https://cdn.example/f.pdf",
+      external: true
+    }
+  ])
+  // Rows cached before reply media have no list at all.
+  assert.deepEqual(
+    messageMedia({ ...row, attachments: undefined as never }, store),
+    { images: [], files: [] }
+  )
+})
+
