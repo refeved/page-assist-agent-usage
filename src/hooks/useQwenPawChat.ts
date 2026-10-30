@@ -8,6 +8,7 @@ import { resolveAgentName } from "@/services/qwenpaw/agent-name"
 import { linkedController } from "@/services/qwenpaw/abort"
 import * as repo from "@/services/qwenpaw/repository"
 import { isTerminal } from "@/services/qwenpaw/types"
+import type { MediaStore } from "@/libs/qwenpaw/message-media"
 import type {
   Agent,
   Approval,
@@ -66,6 +67,12 @@ export function useQwenPawChat(agentDisplayName = "") {
   const [busy, setBusy] = useState(false)
   const [connected, setConnected] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  // Reply media is fetched as bytes and shown through object URLs: IndexedDB
+  // only ever keeps the references, so reopening always re-reads them from the
+  // protected channel endpoint with the current token.
+  const [media, setMedia] = useState<MediaStore>({})
+  const mediaUrls = useRef(new Map<string, string>())
+  const mediaAttempts = useRef(new Set<string>())
   const operation = useRef(false)
   // Tracks which conversation the transcript currently shows so a rerun of
   // the stream effect for the SAME conversation (every submit bumps
@@ -151,6 +158,52 @@ export function useQwenPawChat(agentDisplayName = "") {
       })
     }
   }, [reloadConversations, report])
+
+  useEffect(() => {
+    // A new connection means a new service and a new token: bytes fetched
+    // against the old one must never stay reachable in this page.
+    return () => {
+      mediaUrls.current.forEach((url) => URL.revokeObjectURL(url))
+      mediaUrls.current.clear()
+      mediaAttempts.current.clear()
+      if (mounted.current) setMedia({})
+    }
+  }, [session])
+
+  useEffect(() => {
+    if (!session?.caps.media) return
+    const signal = lifetime.current.signal
+    for (const message of messages) {
+      for (const attachment of message.attachments || []) {
+        const mediaId = attachment.mediaId
+        if (!mediaId || mediaAttempts.current.has(mediaId)) continue
+        mediaAttempts.current.add(mediaId)
+        session.client.media(mediaId, signal).then(
+          (blob) => {
+            const url = URL.createObjectURL(blob)
+            // Aborted means the panel closed or the service changed: leave no
+            // orphan blob behind.
+            if (signal.aborted) {
+              URL.revokeObjectURL(url)
+              return
+            }
+            mediaUrls.current.set(mediaId, url)
+            setMedia((store) => ({
+              ...store,
+              [mediaId]: { status: "ready", url }
+            }))
+          },
+          () => {
+            if (signal.aborted) return
+            setMedia((store) => ({
+              ...store,
+              [mediaId]: { status: "failed" }
+            }))
+          }
+        )
+      }
+    }
+  }, [session, messages])
 
   const refreshApprovals = useCallback(
     async (s: Session, signal: AbortSignal) => {
@@ -619,6 +672,7 @@ export function useQwenPawChat(agentDisplayName = "") {
     conversations,
     conversation,
     messages,
+    media,
     activeRequest,
     approvals,
     approvalsFresh,

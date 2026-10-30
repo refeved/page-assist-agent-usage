@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Alert,
   Button,
@@ -27,6 +27,7 @@ import {
   BookIcon,
   ZapIcon,
   EyeIcon,
+  DownloadIcon,
   X
 } from "lucide-react"
 import { useStorage } from "@plasmohq/storage/hook"
@@ -67,6 +68,11 @@ import { toBase64 } from "@/libs/to-base64"
 import { getScreenshotFromCurrentTab } from "@/libs/get-screenshot"
 import { dataUrlToFile } from "@/libs/qwenpaw/image-payload"
 import { compressImageFile, RELAY_SAFE_BYTES } from "@/libs/qwenpaw/compress-image"
+import { messageMedia } from "@/libs/qwenpaw/message-media"
+import type {
+  MessageFile,
+  MessageMedia
+} from "@/libs/qwenpaw/message-media"
 import { RemoteHTTPError } from "@/services/qwenpaw/client"
 import {
   capture,
@@ -80,6 +86,48 @@ import type {
 } from "@/services/qwenpaw/types"
 
 const noEdit = () => {}
+
+// One file the Agent sent and the user can keep. Bytes fetched through the
+// protected channel route save under their own name; a public link the service
+// passed through opens in a new tab instead.
+function AttachmentChip({ file }: { file: MessageFile }) {
+  const { t } = useTranslation("qwenpaw")
+  const body = (
+    <>
+      {file.status === "loading" ? (
+        <Spin size="small" />
+      ) : (
+        <FileTextIcon className="size-4 shrink-0" />
+      )}
+      <span className="max-w-40 truncate">{file.name}</span>
+      {file.status === "ready" && <DownloadIcon className="size-3.5" />}
+      {file.status === "failed" && (
+        <span className="text-red-500">{t("notAvailable")}</span>
+      )}
+    </>
+  )
+  const shape =
+    "flex items-center gap-2 rounded-lg border border-neutral-200 px-2 py-1 text-xs dark:border-[#525252]"
+  const hint = file.status === "failed" ? t("attachmentExpired") : file.name
+  if (file.status !== "ready" || !file.href) {
+    return (
+      <span className={shape} title={hint}>
+        {body}
+      </span>
+    )
+  }
+  return (
+    <a
+      href={file.href}
+      title={hint}
+      className={`${shape} hover:bg-neutral-100 dark:hover:bg-[#404040]`}
+      {...(file.external
+        ? { target: "_blank", rel: "noreferrer noopener" }
+        : { download: file.name })}>
+      {body}
+    </a>
+  )
+}
 
 // Local staging row for one picked file on its way to the channel server.
 interface PendingAttachment {
@@ -463,6 +511,17 @@ export default function QwenPawSidebar() {
           }
         ])
   ]
+  // Reply media only shows when the connected service advertises it. Mapping
+  // once per transcript keeps every images array referentially stable, so the
+  // memoised message rows do not repaint on each keystroke.
+  const mediaByMessage = useMemo(() => {
+    const rows = new Map<string, MessageMedia>()
+    if (chat.session?.caps.media !== true) return rows
+    chat.messages.forEach((message) =>
+      rows.set(message.id, messageMedia(message, chat.media))
+    )
+    return rows
+  }, [chat.messages, chat.media, chat.session])
   // Quick prompts are local templates that only fill the textarea; system
   // prompts stay unlisted because the remote Agent owns its system prompt.
   const { data: prompts } = useQuery({
@@ -656,29 +715,44 @@ export default function QwenPawSidebar() {
                 </p>
               </div>
             )}
-            {chat.messages.map((message, index) => (
-              <article key={message.id} className="flex w-full justify-center">
-                <PlaygroundMessage
-                  message={message.content}
-                  isBot={message.role === "assistant"}
-                  name={
-                    message.role === "assistant" ? agentDisplayName : "You"
-                  }
-                  modelImage={
-                    message.role === "assistant" ? pawIcon : undefined
-                  }
-                  isLastMessage={index === chat.messages.length - 1}
-                  actionIndex={index}
-                  onEditFormSubmit={noEdit}
-                  hideEditAndRegenerate
-                  hideContinue
-                  disableQuoteReply
-                  isProcessing={false}
-                  isStreaming={processing && index === chat.messages.length - 1}
-                  isTTSEnabled={ttsEnabled}
-                />
-              </article>
-            ))}
+            {chat.messages.map((message, index) => {
+              const media = mediaByMessage.get(message.id)
+              return (
+                <article
+                  key={message.id}
+                  className="flex w-full flex-col items-center">
+                  <PlaygroundMessage
+                    message={message.content}
+                    isBot={message.role === "assistant"}
+                    name={
+                      message.role === "assistant" ? agentDisplayName : "You"
+                    }
+                    modelImage={
+                      message.role === "assistant" ? pawIcon : undefined
+                    }
+                    images={media?.images}
+                    isLastMessage={index === chat.messages.length - 1}
+                    actionIndex={index}
+                    onEditFormSubmit={noEdit}
+                    hideEditAndRegenerate
+                    hideContinue
+                    disableQuoteReply
+                    isProcessing={false}
+                    isStreaming={
+                      processing && index === chat.messages.length - 1
+                    }
+                    isTTSEnabled={ttsEnabled}
+                  />
+                  {!!media?.files.length && (
+                    <div className="flex w-full max-w-3xl flex-wrap justify-center gap-2 px-4 pb-2 lg:w-4/5">
+                      {media.files.map((file) => (
+                        <AttachmentChip key={file.key} file={file} />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
             {processing && (
               <p
                 className="my-2 flex items-center gap-2 text-xs text-gray-500"
