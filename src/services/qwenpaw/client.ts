@@ -32,15 +32,21 @@ export class QwenPawClient {
     path: string,
     signal?: AbortSignal,
     body?: unknown,
-    stream = false
+    stream = false,
+    binary = false
   ) {
+    const accept = stream
+      ? "text/event-stream"
+      : binary
+        ? "*/*"
+        : "application/json"
     const response = await this.fetcher(
       `${this.origin}/api/page-assist${path}`,
       {
         method: body === undefined ? "GET" : "POST",
         headers: {
           Authorization: `Bearer ${this.token}`,
-          Accept: stream ? "text/event-stream" : "application/json",
+          Accept: accept,
           ...(body === undefined ? {} : { "Content-Type": "application/json" })
         },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -51,13 +57,21 @@ export class QwenPawClient {
           ? signal
           : linkedController(
               ...(signal ? [signal] : []),
-              AbortSignal.timeout(20000)
+              // Reply media is bounded by the channel's own size caps, so it
+              // gets a wider window than a JSON round trip.
+              AbortSignal.timeout(binary ? 120000 : 20000)
             ).signal
       }
     )
     if (!response.ok) throw new RemoteHTTPError(response.status)
-    const expected = stream ? "text/event-stream" : "application/json"
-    if (!response.headers.get("content-type")?.includes(expected))
+    // Binary bodies are whatever the channel stored: only JSON and SSE have a
+    // content type this client is allowed to insist on.
+    const expected = stream
+      ? "text/event-stream"
+      : binary
+        ? null
+        : "application/json"
+    if (expected && !response.headers.get("content-type")?.includes(expected))
       throw new Error(`QwenPaw response must be ${expected}`)
     return response
   }
@@ -118,6 +132,19 @@ export class QwenPawClient {
     return v.uploadedAttachment(
       await this.json("/attachments", signal, input)
     )
+  }
+  // Reply and uploaded bytes sit behind the same bearer-protected route, so an
+  // <img src> can never point at them directly: the bytes are fetched here and
+  // the caller decides how to show them.
+  async media(mediaId: string, signal?: AbortSignal) {
+    const response = await this.fetch(
+      `/media/${encodeURIComponent(v.id(mediaId))}`,
+      signal,
+      undefined,
+      false,
+      true
+    )
+    return response.blob()
   }
   async request(
     requestId: string,

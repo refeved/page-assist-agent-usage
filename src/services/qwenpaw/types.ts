@@ -23,6 +23,9 @@ export interface Capabilities {
   attachments: boolean
   maxAttachmentBytes: number
   maxAttachments: number
+  // Reply media (Agent images and files) is a later addition: a server that
+  // predates it simply omits the field, which means "unsupported".
+  media: boolean
 }
 export interface Agent {
   id: string
@@ -54,11 +57,24 @@ export interface MessagePayload {
   pageContext?: PageContext
   attachments?: AttachmentRef[]
 }
+// One file the channel wants to show in the transcript. A mediaId is an
+// upload or a reply attachment stored by the service and only readable
+// through the authenticated download endpoint; a url is a public link the
+// service passed through untouched.
+export interface RemoteAttachment {
+  mediaId?: string
+  url?: string
+  kind: "image" | "file"
+  name: string
+  mediaType: string
+  bytes: number
+}
 export interface RemoteMessage {
   id: string
   requestId: string
   role: "user" | "assistant"
   content: string
+  attachments: RemoteAttachment[]
   status: string
 }
 export interface RequestRecord {
@@ -83,6 +99,7 @@ export type OutputEvent =
       requestId: string
       messageId: string
       content: string
+      attachments: RemoteAttachment[]
       status: string
     }
   | { type: "request.error"; requestId: string; code: string; message: string }

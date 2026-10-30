@@ -51,9 +51,10 @@ const LOCAL_CAPABILITIES: ProviderCapabilities = {
 }
 
 /**
- * The remote channel only transports text plus a page snapshot. Everything the
- * Agent does with tools runs on the QwenPaw side, so local-only affordances stay
- * off and the composer explains why instead of silently disappearing.
+ * The remote channel transports text, a page snapshot and whatever media the
+ * Agent sends back. Everything the Agent does with tools runs on the QwenPaw
+ * side, so local-only affordances stay off and the composer explains why
+ * instead of silently disappearing.
  * Affordances that merely produce or consume the message text itself (reading
  * replies aloud, dictation, quick prompts) are handled in the browser and work
  * against any provider.

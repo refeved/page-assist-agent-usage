@@ -22,6 +22,11 @@ export function applyMessageEvent(
       event.type === "message.snapshot"
         ? event.content
         : (previous?.content || "") + event.delta,
+    // Media only ever arrives with a snapshot; a delta must not erase it.
+    attachments:
+      event.type === "message.snapshot"
+        ? event.attachments
+        : previous?.attachments || [],
     status: event.type === "message.snapshot" ? event.status : "streaming"
   }
   return index < 0

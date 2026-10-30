@@ -3,6 +3,7 @@ import type {
   Approval,
   Capabilities,
   OutputEvent,
+  RemoteAttachment,
   RemoteMessage,
   RequestRecord,
   RequestState,
@@ -64,11 +65,15 @@ export function capabilities(value: unknown): Capabilities {
     approvalEvents: flag(v.approvalEvents),
     attachments,
     maxAttachmentBytes: positiveLimit(v.maxAttachmentBytes),
-    maxAttachments: attachments ? positiveLimit(v.maxAttachments) : 0
+    maxAttachments: attachments ? positiveLimit(v.maxAttachments) : 0,
+    media: v.media === true
   }
 }
 function positiveLimit(value: unknown): number {
   return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0
+}
+function byteSize(value: unknown): number {
+  return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : 0
 }
 export function uploadedAttachment(value: unknown): UploadedAttachment {
   const v = object(value)
@@ -80,10 +85,52 @@ export function uploadedAttachment(value: unknown): UploadedAttachment {
     name: text(v.name),
     kind: v.kind,
     mediaType: text(v.mediaType),
-    bytes: Number.isSafeInteger(v.bytes) && Number(v.bytes) >= 0
-      ? Number(v.bytes)
-      : 0
+    bytes: byteSize(v.bytes)
   }
+}
+// A reply carries a handful of files at most. Anything larger is a broken or
+// hostile payload and must never turn into that many protected downloads.
+const MAX_MESSAGE_ATTACHMENTS = 8
+function webUrl(value: unknown): string {
+  const raw = text(value)
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    throw new Error("Invalid QwenPaw attachment URL")
+  }
+  // Only public links: a file:, data: or javascript: href would read the
+  // user's disk or run code inside the extension page.
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+    throw new Error("Invalid QwenPaw attachment URL")
+  return parsed.href
+}
+export function attachment(value: unknown): RemoteAttachment {
+  const v = object(value)
+  if (v.kind !== "image" && v.kind !== "file") {
+    throw new Error("Invalid QwenPaw attachment kind")
+  }
+  const mediaId = v.mediaId === undefined ? undefined : id(v.mediaId)
+  const url = v.url === undefined ? undefined : webUrl(v.url)
+  if (!mediaId && !url)
+    throw new Error("Invalid QwenPaw attachment: no readable source")
+  return {
+    mediaId,
+    url,
+    kind: v.kind,
+    name: text(v.name),
+    mediaType: text(v.mediaType),
+    bytes: byteSize(v.bytes)
+  }
+}
+// Servers without reply media omit the field entirely, so a missing list
+// means "nothing attached" rather than an invalid message.
+export function attachmentList(value: unknown): RemoteAttachment[] {
+  if (value === undefined) return []
+  const rows = list(value)
+  if (rows.length > MAX_MESSAGE_ATTACHMENTS)
+    throw new Error("Too many QwenPaw attachments")
+  return rows.map(attachment)
 }
 export function request(value: unknown): RequestRecord {
   const v = object(value)
@@ -102,6 +149,7 @@ export function message(value: unknown): RemoteMessage {
     requestId: id(v.requestId),
     role: v.role,
     content: text(v.content),
+    attachments: attachmentList(v.attachments),
     status: text(v.status)
   }
 }
@@ -125,6 +173,7 @@ export function output(value: unknown): OutputEvent {
         requestId,
         messageId: id(v.messageId),
         content: text(v.content),
+        attachments: attachmentList(v.attachments),
         status: text(v.status)
       }
     case "request.error":

@@ -81,6 +81,9 @@ export async function prepare(
         requestId: payload.requestId,
         role: "user",
         content: payload.text,
+        // The authoritative history replaces this row with the real media
+        // references; the optimistic copy only carries the typed text.
+        attachments: [],
         status: "pending",
         updatedAt
       })
