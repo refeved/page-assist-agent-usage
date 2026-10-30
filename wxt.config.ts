@@ -2,13 +2,15 @@ import { defineConfig } from "wxt"
 import react from "@vitejs/plugin-react"
 import topLevelAwait from "vite-plugin-top-level-await"
 
+// "action" is a manifest key, not a permission: listing it here only makes the
+// browser warn about an unknown permission, the toolbar button comes from the
+// `action` entry below.
 const chromeMV3Permissions = [
   "storage",
   "sidePanel",
   "activeTab",
   "scripting",
   "declarativeNetRequest",
-  "action",
   "unlimitedStorage",
   "contextMenus",
   "tts",
