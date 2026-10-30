@@ -18,8 +18,11 @@ OpenAI API 不能替代此地址。安装及配置参见插件 README。
 
 首版支持文字、显式网页分享、独立聊天和追问，并可随消息上传图片／文件／网页截图
 附件；显示完整消息，不提供逐 token 增量、全局 Agent 发现、断线/重启恢复或审批事件推送。
+新版扩展与 0.1.3 频道进一步支持**回复媒体**：Agent 回复中的图片就地预览，图片与文件一律
+附带可保存的附件条（保留原始文件名），字节按需经同一条带凭据的受保护路由取回，服务端不暴
+露本机路径。频道未声明该能力时回复仍只显示文字，与旧版行为完全一致。
 频道声明 `recovery=false`、`approvals=true`、`approvalEvents=false`、
-`attachments=true`；前端展示限制提示，
+`attachments=true` 与 `media=true`；前端展示限制提示，
 不自动恢复断线，收到终态事件才解锁下一次发送。待审批不再写入对话消息，
 而是由输入框工具栏的审批按钮提示：无待审批时按钮置灰，有待审批时高亮并显示
 数量，点击弹出气泡完成批准或拒绝。前端每 5 秒轮询对账，不依赖推送。
@@ -93,21 +96,36 @@ JPEG；若请求被频道前方的中继以 413 拒绝（如反向代理的 body
 快捷 Prompt 插入都在浏览器本地完成，对任何后端都可用。频道不支持的消息编辑重生
 成、分支、继续生成和临时聊天仍不提供操作；粘贴或拖入文件在频道未声明附件能力时
 明确报错。远程消息使用同一 Markdown／CodeBlock 组件的安全模式：不加载回复正文内
-引用的远程图片、不执行 HTML／SVG 预览、不写入普通聊天的引用回复状态。TTS 朗读仍
+引用的远程图片、不执行 HTML／SVG 预览、不写入普通聊天的引用回复状态；该限制只针对正文
+内嵌的图片，频道显式声明的回复附件按下文单独处理。TTS 朗读仍
 仅在用户开启“Web UI 朗读”时触发，不是无条件的自动朗读。原生本地聊天保留默认渲染
 和工具行为。
+
+回复媒体只在 Remote 路径渲染，并完全由所连频道声明的 `media` 能力开关控制。历史与 SSE
+快照中的消息因此多出一个 `attachments` 数组，每一项要么带服务端 `mediaId`，要么是一个
+公共 `http(s)` 链接。`mediaId` 项由扩展用当前 Bearer 凭据取回字节，再换成 object URL
+预览或下载——`<img src>` 不能直接指向受保护路由，凭据也不会出现在 URL 里；IndexedDB 只
+保存元数据，重开聊天会按需重新取回，断开或切换连接时集中 revoke。不论图片还是文件，每
+个附件只对应一个附件条，承载显示名与保存动作：仅有缩略图是无法下载的，所以取回成功的图
+片既就地预览也列在附件条里，仍在取字节的数据显示转圈而不是消失，永久失败的数据给出可读
+的过期说明而不是坏掉的缩略图，回复因此不会显得比服务端实际发送的更短。公共链接项直接使
+用：预览照常，附件条在新标签页打开（跨源链接上的 `download` 属性会被浏览器忽略，无法保
+留原始文件名，因此不承诺静默落盘），服务端不代为抓取外部资源。Local models 路径不使用这
+套映射，本地聊天的图片来源、工具行为与渲染保持原样。
 
 ### 能力矩阵
 
 `src/services/provider-capabilities.ts` 是 Provider 能力的唯一判定来源：Local models
 除“审批卡片”外全部开启，Remote Agent 保留聊天、页面上下文、历史、新建会话与
-审批卡片；图片／文件上传按连接频道声明的附件能力动态开启。
+审批卡片；图片／文件上传按连接频道声明的附件能力动态开启。回复中的媒体不进入这张表，
+它只由所连频道声明的 `media` 能力决定，与上传能力互不影响。
 
 | 能力 | Local models | Remote Agent |
 | --- | --- | --- |
 | 聊天、页面上下文、会话历史、新建会话 | 支持 | 支持 |
 | 语音转文字听写、TTS 朗读、快捷 Prompt | 支持 | 支持（浏览器本地实现） |
 | 图片、文件与网页截图上传 | 支持 | 支持（需频道声明附件能力；截图在扩展本地捕获后作为图片附件） |
+| 回复中的图片预览与附件保存 | 不适用（本地回复不携带附件） | 支持（图片与文件都有下载入口；需频道声明 `media` 能力，旧频道仍只显示文字） |
 | RAG、联网搜索、MCP、临时聊天、逐会话模型参数 | 支持 | 不支持 |
 | OCR、Page Action、WebMCP | 支持 | 不支持 |
 
@@ -160,6 +178,14 @@ JPEG；若请求被频道前方的中继以 413 拒绝（如反向代理的 body
   optimize away repeated attachments.
 - Remote Markdown uses the existing React Markdown/GFM libraries without raw
   HTML, executable code previews, local tool actions or automatically loaded images.
+  The one exception is a reply attachment the channel names explicitly: its image is
+  loaded on its own, never as HTML or a script, and any attachment source outside
+  http(s) is rejected before it reaches the DOM.
+- Reply media bytes are held in memory only: they become object URLs, are revoked when
+  the connection changes or the panel closes, and are never written to IndexedDB,
+  export files or logs. The cache stores just the media id, name, kind, type and size,
+  so after a channel restart the id is gone and the transcript says so instead of
+  retrying a download that cannot succeed.
 - Successfully resolved local caches expire after 30 days. Unresolved requests
   are retained to prevent accidental execution replay; their request payloads
   may contain explicitly shared webpage content. Local cache removal is blocked
@@ -169,13 +195,13 @@ JPEG；若请求被频道前方的中继以 413 拒绝（如反向代理的 body
 ## Browser application contract v1
 
 This section fixes the shapes used by this frontend. The Page Assist channel
-advertises `recovery=false`, `approvals=true`, `approvalEvents=false` and
-`attachments=true`; approval event push and durable recovery remain future
-work. These are not built-in
-Console APIs. JSON responses
+advertises `recovery=false`, `approvals=true`, `approvalEvents=false`,
+`attachments=true` and `media=true`; approval event push and durable recovery
+remain future work. These are not built-in Console APIs. JSON responses
 must have `Content-Type: application/json`; event endpoints use
-`text/event-stream`. HTTP failures, including 401, 403, 409 and 429, are displayed
-and do not trigger write retries or model fallback.
+`text/event-stream`. Media bytes are the single exception: `GET /media/:id` answers
+with whatever type it stored and is read as binary. HTTP failures, including 401, 403,
+409 and 429, are displayed and do not trigger write retries or model fallback.
 
 ### Capabilities, Agents and conversations
 
@@ -193,14 +219,16 @@ and do not trigger write retries or model fallback.
   "approvalEvents": false,
   "attachments": true,
   "maxAttachmentBytes": 5242880,
-  "maxAttachments": 4
+  "maxAttachments": 4,
+  "media": true
 }
 ```
 
 Core fields are required; instance and principal strings partition caches, not
 authorization. Unsupported versions or malformed flags/limits fail closed. The
-three attachment fields arrived after v1: a server that omits them is simply
-treated as not supporting uploads.
+three attachment fields and `media` arrived after v1: a server that omits them is
+simply treated as not supporting uploads, or not sending reply media, and the
+transcript stays text-only.
 
 `GET /agents`: `{ "agents": [{ "id": "researcher", "name": "Researcher",
 "description": "Optional description" }] }`.
@@ -261,6 +289,15 @@ history in chronological order:
       "requestId": "client-uuid",
       "role": "assistant",
       "content": "Visible response, without hidden reasoning",
+      "attachments": [
+        {
+          "mediaId": "server-uuid",
+          "kind": "image",
+          "name": "chart.png",
+          "mediaType": "image/png",
+          "bytes": 12345
+        }
+      ],
       "status": "complete"
     }
   ]
@@ -268,7 +305,13 @@ history in chronological order:
 ```
 
 Only `user` and `assistant` roles are accepted in v1. IDs must be unique within a
-conversation. Partial/paginated history (`complete: false`) is rejected rather
+conversation. `attachments` is optional on either role and a missing field means
+nothing was attached. Each entry has exactly one readable source: a `mediaId` served
+by `GET /media/:id`, or a `url` the channel forwarded without storing bytes (then
+`bytes` is 0). `kind` is `image` or `file`; a non-http(s) URL, an entry with neither
+source or more than 8 entries on one message is rejected as malformed rather than
+turned into that many downloads.
+Partial/paginated history (`complete: false`) is rejected rather
 than silently replacing complete cached output with a summary. Pagination requires
 a subsequent protocol extension.
 
@@ -277,15 +320,17 @@ a subsequent protocol extension.
 | Type | Additional fields besides `requestId` |
 | --- | --- |
 | `request.state` | `state` |
-| `message.snapshot` | `messageId`, `content`, `status` |
+| `message.snapshot` | `messageId`, `content`, `attachments`, `status` |
 | `message.delta` | `messageId`, `delta` |
 | `request.error` | `code`, `message` |
 | `request.terminal` | `state` |
 
 Every subscription, including reconnects, must send a snapshot for each message
 before that message's deltas. Snapshots replace output rather than appending
-replayed text. UTF-8 chunk boundaries, LF/CRLF, comments and multiline data are
-supported. Incomplete events at EOF are discarded; EOF is never success.
+replayed text. Reply media travels only with a snapshot: a delta updates the text and
+must leave the attachments already shown untouched. UTF-8 chunk boundaries, LF/CRLF,
+comments and multiline data are supported. Incomplete events at EOF are discarded; EOF
+is never success.
 Frames are limited to 2 million string units.
 
 After terminal signals or interrupted output, the controller reconciles state
@@ -316,6 +361,34 @@ never automatically retried after an ambiguous response. A relay 413 in front of
 the channel is an explicit rejection with no server-side effect, so images hit by
 one are re-encoded to a relay-safe size and uploaded once more; that fallback
 never applies to non-image uploads or resends a consumed attachment id.
+
+### Reply media
+
+`GET /media/:mediaId` returns the bytes the channel buffered for one attachment under
+the same bearer token as every other route, with the stored `Content-Type`. Ids are
+opaque UUIDs, so no server path or filename is ever readable from the URL; the display
+name comes from the message's `attachments` entry. An unknown, malformed or already
+evicted id is a plain `404`. Stored images are served `inline` and everything else as
+an attachment download, so nothing buffered here can render as a page.
+
+The frontend reads these bytes itself and shows them as object URLs: an `<img>` cannot
+carry the credential, and the id must not end up in a URL another page could load.
+Each id is attempted at most once per connection, failures are per message and per id,
+and only the metadata is cached — reopening a conversation re-reads the bytes with the
+current token, and changing or closing the connection revokes every object URL.
+A `404`, typically after a channel restart, becomes an explanatory chip rather than a
+broken thumbnail. Every attachment earns exactly one chip whatever its kind, carrying the
+display name and the save action: a thumbnail alone cannot be downloaded, so a ready
+image is previewed inline *and* listed, one whose bytes are still arriving shows a
+spinner instead of vanishing, and a permanently failed one explains itself, so a reply
+never looks shorter than the service says it is.
+
+The same route serves uploads back, which is how an image or file the user sent
+reappears in history instead of a bare filename. A reply attachment carrying a public
+`url` instead of a `mediaId` skips all of this: the channel forwards the link rather
+than fetching it, because doing so would turn this listener into an open proxy, and the
+browser uses it directly — a preview plus a chip that opens the link in a new tab, since
+a cross-origin `download` attribute is ignored and cannot keep the file's real name.
 
 ### Native approvals
 
