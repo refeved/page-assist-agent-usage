@@ -26,6 +26,16 @@ export default defineBackground({
       sidePanel: "open-side-panel-pa"
     }
 
+    const contextMenuTitle = {
+      webui: browser.i18n.getMessage("openOptionToChat"),
+      sidePanel: browser.i18n.getMessage("openSidePanelToChat")
+    }
+
+    // The setting is free text, so an unknown value must never reach the menu
+    // api, where it would produce an entry without an id or a title.
+    const chatMenuKey = (value: string) =>
+      contextMenuId[value] ? value : "sidePanel"
+
     let customCopilotMenuIds: string[] = []
     const builtinCopilotMenus = [
       { id: "summarize-pa", key: "summary", title: "Summarize" },
@@ -35,16 +45,25 @@ export default defineBackground({
       { id: "custom-pg", key: "custom", title: "Custom" }
     ]
 
+    // Chrome keeps the menus an extension registered for the whole browser
+    // session, while this file runs again on every service worker wake-up, so a
+    // create has to drop the copy from the previous run first or the ids
+    // collide and the menu silently stays as it was.
+    const removeMenu = async (menuId?: string) => {
+      if (!menuId) return
+      try {
+        await browser.contextMenus.remove(menuId)
+      } catch (e) {
+        // Menu might not exist, ignore
+      }
+    }
+
     const createBuiltinCopilotMenus = async () => {
       const enabledState = await getCopilotPromptsEnabledState()
 
       for (const menu of builtinCopilotMenus) {
         // Remove existing menu
-        try {
-          await browser.contextMenus.remove(menu.id)
-        } catch (e) {
-          // Menu might not exist, ignore
-        }
+        await removeMenu(menu.id)
 
         // Create menu only if enabled
         if (enabledState[menu.key]) {
@@ -60,11 +79,7 @@ export default defineBackground({
     const createCustomCopilotMenus = async () => {
       // Remove existing custom copilot menus
       for (const menuId of customCopilotMenuIds) {
-        try {
-          await browser.contextMenus.remove(menuId)
-        } catch (e) {
-          // Menu might not exist, ignore
-        }
+        await removeMenu(menuId)
       }
       customCopilotMenuIds = []
 
@@ -74,6 +89,9 @@ export default defineBackground({
 
       for (const prompt of enabledPrompts) {
         const menuId = `custom_copilot_${prompt.id}`
+        // The tracker above is empty after a service worker restart while the
+        // menus of the previous run are still registered, so drop by id too.
+        await removeMenu(menuId)
         customCopilotMenuIds.push(menuId)
         browser.contextMenus.create({
           id: menuId,
@@ -81,6 +99,16 @@ export default defineBackground({
           contexts: ["selection"]
         })
       }
+    }
+
+    const setChatMenu = async (previousKey?: string) => {
+      await removeMenu(contextMenuId[previousKey])
+      await removeMenu(contextMenuId[contextMenuClick])
+      browser.contextMenus.create({
+        id: contextMenuId[contextMenuClick],
+        title: contextMenuTitle[contextMenuClick],
+        contexts: ["page", "selection"]
+      })
     }
 
     const initialize = async () => {
@@ -93,17 +121,12 @@ export default defineBackground({
               actionIconClick = newValue
             }
           },
-          contextMenuClick: (value) => {
+          contextMenuClick: async (value) => {
             const oldValue = value?.oldValue || "sidePanel"
             const newValue = value?.newValue || "sidePanel"
             if (oldValue !== newValue) {
-              contextMenuClick = newValue
-              browser.contextMenus.remove(contextMenuId[oldValue])
-              browser.contextMenus.create({
-                id: contextMenuId[newValue],
-                title: contextMenuTitle[newValue],
-                contexts: ["page", "selection"]
-              })
+              contextMenuClick = chatMenuKey(newValue)
+              await setChatMenu(oldValue)
             }
           },
           customCopilotPrompts: async () => {
@@ -128,14 +151,13 @@ export default defineBackground({
           }
         })
         const data = await getInitialConfig()
-        contextMenuClick = data.contextMenuClick
+        contextMenuClick = chatMenuKey(data.contextMenuClick)
         actionIconClick = data.actionIconClick
 
-        browser.contextMenus.create({
-          id: contextMenuId[contextMenuClick],
-          title: contextMenuTitle[contextMenuClick],
-          contexts: ["page", "selection"]
-        })
+        // Menus outlive the service worker, so start from a clean slate instead
+        // of adding a second copy of everything below.
+        await browser.contextMenus.removeAll()
+        await setChatMenu()
 
         // Create built-in copilot menus
         await createBuiltinCopilotMenus()
@@ -189,11 +211,7 @@ export default defineBackground({
         await disconnectMcpOAuth(message.serverId)
         return Promise.resolve({ success: true })
       } else if (message.type === "youtube_summarize") {
-        if (sender.tab?.id) {
-          chrome.sidePanel.open({
-            tabId: sender.tab.id
-          })
-        }
+        openSidePanel(sender.tab?.id)
 
         setTimeout(
           async () => {
@@ -219,34 +237,40 @@ export default defineBackground({
       }
     })
 
+    // Both click events hand out the tab as an optional argument, and
+    // `sidePanel.open` rejects on its own when the panel is already showing or
+    // the tab went away, so neither may be allowed to reject the listener.
+    const openSidePanel = (tabId?: number) => {
+      if (tabId === undefined) return
+      chrome.sidePanel.open({ tabId }).catch((error) => {
+        console.error("Failed to open the side panel", error)
+      })
+    }
+
     chrome.action.onClicked.addListener((tab) => {
       if (actionIconClick === "webui") {
         chrome.tabs.create({ url: chrome.runtime.getURL("/options.html") })
       } else {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tab.id)
       }
     })
 
-    const contextMenuTitle = {
-      webui: browser.i18n.getMessage("openOptionToChat"),
-      sidePanel: browser.i18n.getMessage("openSidePanelToChat")
-    }
-
     browser.contextMenus.onClicked.addListener(async (info, tab) => {
-      if (info.menuItemId === "open-side-panel-pa") {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
-      } else if (info.menuItemId === "open-web-ui-pa") {
+      // Opening the Web UI is the only entry that does not need a tab.
+      if (info.menuItemId === "open-web-ui-pa") {
         browser.tabs.create({
           url: browser.runtime.getURL("/options.html")
         })
+        return
+      }
+
+      const tabId = tab?.id
+      if (tabId === undefined) return
+
+      if (info.menuItemId === "open-side-panel-pa") {
+        openSidePanel(tabId)
       } else if (info.menuItemId === "summarize-pa") {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tabId)
         // this is a bad method hope somone can fix it :)
         setTimeout(
           async () => {
@@ -259,9 +283,7 @@ export default defineBackground({
           isCopilotRunning ? 0 : 5000
         )
       } else if (info.menuItemId === "rephrase-pa") {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tabId)
         setTimeout(
           async () => {
             await browser.runtime.sendMessage({
@@ -273,9 +295,7 @@ export default defineBackground({
           isCopilotRunning ? 0 : 5000
         )
       } else if (info.menuItemId === "translate-pg") {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tabId)
 
         setTimeout(
           async () => {
@@ -288,9 +308,7 @@ export default defineBackground({
           isCopilotRunning ? 0 : 5000
         )
       } else if (info.menuItemId === "explain-pa") {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tabId)
 
         setTimeout(
           async () => {
@@ -303,9 +321,7 @@ export default defineBackground({
           isCopilotRunning ? 0 : 5000
         )
       } else if (info.menuItemId === "custom-pg") {
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tabId)
 
         setTimeout(
           async () => {
@@ -319,9 +335,7 @@ export default defineBackground({
         )
       } else if (typeof info.menuItemId === "string" && info.menuItemId.startsWith("custom_copilot_")) {
         // Handle custom copilot prompts
-        chrome.sidePanel.open({
-          tabId: tab.id!
-        })
+        openSidePanel(tabId)
 
         setTimeout(
           async () => {
@@ -371,9 +385,7 @@ export default defineBackground({
                 )
               }
 
-              chrome.sidePanel.open({
-                tabId: tab.id
-              })
+              openSidePanel(tab.id)
             }
           )
           break
