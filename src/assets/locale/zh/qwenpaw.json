@@ -46,6 +46,8 @@
   "saved": "连接已保存，返回远程页面重新认证。",
   "test": "测试连接",
   "tested": "协议 v1 认证通过，可访问 {{count}} 个 Agent。",
+  "identityLine": "运行期身份：频道插件 {{channel}}，QwenPaw 宿主 {{host}}，协议 {{protocol}}，实例 {{instance}}。",
+  "identityUnknown": "未上报",
   "privacy": "请使用受限的浏览器凭据，不使用 Console 管理员令牌。凭据只保存在扩展本地存储，不进入备份。保存连接后旧缓存会隔离。",
   "unavailable": "服务端需部署 QwenPaw 浏览器接入 API。普通 QwenPaw 地址或 OpenAI 接口不能替代此协议。",
   "channelPreview": "基础频道：每个地址绑定一个 Agent，仅显示完整回复。暂不支持断线或重启后恢复及浏览器审批卡片；需要审批时请另行打开 QwenPaw Console。结果未知时请勿重发。",

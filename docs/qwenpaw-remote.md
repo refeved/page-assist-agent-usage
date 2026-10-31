@@ -52,6 +52,11 @@ Remote Agent 且尚未配置时，连接表单直接内联展开，保存成功�
 （`/settings/qwenpaw`），options 页与侧栏设置页共用同一份连接表单，不再混入
 General Settings（侧栏的 Ollama 配置所在页）。
 
+连接表单在打开时（已有保存的连接）、测试通过后以及保存后会显示一行运行期身份：频道插件
+版本、QwenPaw 宿主版本、协议版本与 instanceId 前缀。这两个版本由服务端 `/capabilities`
+上报，服务端未上报或旧版频道没有该字段时显示“未上报”，不影响握手；instanceId 变化
+同时解释了聊天列表为何被隔离成新会话。
+
 远程页面不挂载普通聊天发送容器，不调用本地 RAG、MCP、记忆或默认 Prompt，
 不接收普通右键摘要／翻译的自动提交事件。选区分享使用远程页面中的独立读取按钮。
 返回 Local models 不改动原模型配置；Web UI 不新增远程发送入口。
@@ -220,7 +225,9 @@ with whatever type it stored and is read as binary. HTTP failures, including 401
   "attachments": true,
   "maxAttachmentBytes": 5242880,
   "maxAttachments": 4,
-  "media": true
+  "media": true,
+  "channelVersion": "0.1.3",
+  "hostVersion": "2.2.2.post1"
 }
 ```
 
@@ -229,6 +236,12 @@ authorization. Unsupported versions or malformed flags/limits fail closed. The
 three attachment fields and `media` arrived after v1: a server that omits them is
 simply treated as not supporting uploads, or not sending reply media, and the
 transcript stays text-only.
+
+`channelVersion` and `hostVersion` are display labels added for the connection panel, so a
+user can see which channel plugin and which QwenPaw host answered; the channel reads them
+from its own manifest and from the running host, and omits either one when it cannot be
+read. The extension treats a missing, non-string or over-long label as unreported and keeps
+the session valid: nothing is negotiated on these fields, so `protocolVersion` stays 1.
 
 `GET /agents`: `{ "agents": [{ "id": "researcher", "name": "Researcher",
 "description": "Optional description" }] }`.

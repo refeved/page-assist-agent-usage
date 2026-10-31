@@ -9,6 +9,7 @@ import {
 } from "@/services/qwenpaw/config"
 import { QwenPawClient } from "@/services/qwenpaw/client"
 import { serviceUrl } from "@/services/qwenpaw/privacy"
+import type { Capabilities } from "@/services/qwenpaw/types"
 
 type QwenPawConnectionFormProps = {
   /** Called after a connection was persisted successfully. */
@@ -35,17 +36,34 @@ export const QwenPawConnectionForm = ({
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [busy, setBusy] = useState(false)
+  const [caps, setCaps] = useState<Capabilities | null>(null)
+
+  // The identity line comes from the same handshake the buttons make. A server
+  // that does not answer clears it instead of keeping the identity of whatever
+  // host answered last, which would be a claim about the wrong machine.
+  const showIdentity = async (baseUrl: string, bearer: string) => {
+    try {
+      const client = new QwenPawClient(
+        { id: "identity", baseUrl: serviceUrl(baseUrl) },
+        bearer
+      )
+      setCaps(await client.capabilities())
+    } catch {
+      setCaps(null)
+    }
+  }
 
   useEffect(() => {
     let live = true
     Promise.all([loadConnection(), loadAgentName()])
-      .then(([saved, savedAgentName]) => {
+      .then(async ([saved, savedAgentName]) => {
         if (!live) return
         setAgentName(savedAgentName)
         if (saved) {
           setBase(saved.config.baseUrl)
           setToken(saved.token)
           setConsoleUrl(saved.config.consoleUrl || "")
+          await showIdentity(saved.config.baseUrl, saved.token)
         }
       })
       .catch((e) => {
@@ -65,17 +83,22 @@ export const QwenPawConnectionForm = ({
         await saveConnection(base, token, consoleUrl)
         await saveAgentName(agentName)
         setSuccess(t("saved"))
+        // Not awaited: saving may hand over to the chat page straight away, and
+        // the identity line is not worth delaying that for a round trip.
+        void showIdentity(base.trim(), token.trim())
         onConfigured?.()
       } else {
         const client = new QwenPawClient(
           { id: "test", baseUrl: serviceUrl(base.trim()) },
           token.trim()
         )
-        await client.capabilities()
+        const reported = await client.capabilities()
         const agents = await client.agents()
+        setCaps(reported)
         setSuccess(t("tested", { count: agents.length }))
       }
     } catch (e) {
+      setCaps(null)
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
@@ -150,6 +173,18 @@ export const QwenPawConnectionForm = ({
         <Alert type="error" message={t("error")} description={error} />
       )}
       {success && <Alert type="success" message={success} />}
+      {/* One glance to tell which deployment answered, and whether it still is
+          the same channel instance the sidebar cached conversations under. */}
+      {caps && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {t("identityLine", {
+            channel: caps.channelVersion || t("identityUnknown"),
+            host: caps.hostVersion || t("identityUnknown"),
+            protocol: `v${caps.protocolVersion}`,
+            instance: caps.instanceId.slice(0, 8)
+          })}
+        </p>
+      )}
     </Space>
   )
 }

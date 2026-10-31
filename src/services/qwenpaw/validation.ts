@@ -66,8 +66,20 @@ export function capabilities(value: unknown): Capabilities {
     attachments,
     maxAttachmentBytes: positiveLimit(v.maxAttachmentBytes),
     maxAttachments: attachments ? positiveLimit(v.maxAttachments) : 0,
-    media: v.media === true
+    media: v.media === true,
+    // Version labels never take part in the handshake: a server predating them
+    // sends neither, and anything that is not a short string is read back as
+    // "not reported" rather than throwing away an otherwise valid session.
+    channelVersion: optionalText(v.channelVersion),
+    hostVersion: optionalText(v.hostVersion)
   }
+}
+function optionalText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  // A label longer than this is not a version, and displaying junk would be
+  // worse than displaying nothing.
+  return trimmed && trimmed.length <= 64 ? trimmed : undefined
 }
 function positiveLimit(value: unknown): number {
   return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0

@@ -167,7 +167,7 @@ test("DTO validation fails closed for unknown states, protocols and incomplete a
   assert.throws(() => approval({ id: "fake", target: "from markdown" }))
   assert.throws(() => output({ type: "execute.command", requestId: "r" }))
 })
-test("capabilities stay valid for servers without attachment fields", () => {
+test("capabilities stay valid for servers without attachment or version fields", () => {
   const legacy = capabilities({
     protocolVersion: 1,
     instanceId: "i",
@@ -182,6 +182,9 @@ test("capabilities stay valid for servers without attachment fields", () => {
   assert.equal(legacy.maxAttachments, 0)
   assert.equal(legacy.maxAttachmentBytes, 0)
   assert.equal(legacy.media, false)
+  // Version labels are advisory: a server that predates them stays valid.
+  assert.equal(legacy.channelVersion, undefined)
+  assert.equal(legacy.hostVersion, undefined)
   const modern = capabilities({
     protocolVersion: 1,
     instanceId: "i",
@@ -194,12 +197,25 @@ test("capabilities stay valid for servers without attachment fields", () => {
     attachments: true,
     maxAttachmentBytes: 5242880,
     maxAttachments: 4,
-    media: true
+    media: true,
+    channelVersion: "0.1.3",
+    hostVersion: "2.2.2.post1"
   })
   assert.equal(modern.attachments, true)
   assert.equal(modern.maxAttachments, 4)
   assert.equal(modern.maxAttachmentBytes, 5242880)
   assert.equal(modern.media, true)
+  assert.equal(modern.channelVersion, "0.1.3")
+  assert.equal(modern.hostVersion, "2.2.2.post1")
+  // Junk labels are read as "not reported" instead of throwing the handshake
+  // away over a display field.
+  const junk = capabilities({
+    ...modern,
+    channelVersion: 999,
+    hostVersion: "x".repeat(200)
+  })
+  assert.equal(junk.channelVersion, undefined)
+  assert.equal(junk.hostVersion, undefined)
   assert.equal(
     uploadedAttachment({
       attachmentId: "a",

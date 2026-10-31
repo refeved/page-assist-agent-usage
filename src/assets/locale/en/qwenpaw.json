@@ -46,6 +46,8 @@
   "saved": "Connection saved. Reconnect to authenticate.",
   "test": "Test connection",
   "tested": "Protocol v1 authenticated; {{count}} authorized agents.",
+  "identityLine": "Runtime identity: channel plugin {{channel}}, QwenPaw host {{host}}, protocol {{protocol}}, instance {{instance}}.",
+  "identityUnknown": "not reported",
   "privacy": "Use a restricted browser credential, not a Console administrator token. Credentials remain in extension-local storage and are excluded from backups. Saving partitions old caches.",
   "unavailable": "QwenPaw browser APIs must be deployed on the service. A normal QwenPaw or OpenAI endpoint is not a substitute.",
   "channelPreview": "Basic channel: one Agent per endpoint, complete replies only. Recovery after disconnect or restart and browser approval cards are unavailable. Handle approvals in the QwenPaw Console separately. Do not resend an uncertain request.",

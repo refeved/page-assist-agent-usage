@@ -26,6 +26,11 @@ export interface Capabilities {
   // Reply media (Agent images and files) is a later addition: a server that
   // predates it simply omits the field, which means "unsupported".
   media: boolean
+  // Which deployment the panel is talking to. Advisory only, so a server that
+  // sends neither is indistinguishable from one that could not read its own
+  // version: both leave the extension with nothing to display.
+  channelVersion?: string
+  hostVersion?: string
 }
 export interface Agent {
   id: string
